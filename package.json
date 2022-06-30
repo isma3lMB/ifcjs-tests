@@ -4,7 +4,9 @@
   "description": "IFC.js crash course exercises",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "rollup -c",
+    "watch": "rollup -c -w"
   },
   "repository": {
     "type": "git",
@@ -16,5 +18,14 @@
   "bugs": {
     "url": "https://github.com/isma3lMB/ifcjs-tests/issues"
   },
-  "homepage": "https://github.com/isma3lMB/ifcjs-tests#readme"
+  "homepage": "https://github.com/isma3lMB/ifcjs-tests#readme",
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^13.3.0",
+    "rollup": "^2.75.7"
+  },
+  "dependencies": {
+    "three": "^0.135.0",
+    "web-ifc": "^0.0.35",
+    "web-ifc-viewer": "^1.0.202"
+  }
 }
