@@ -1,7 +1,28 @@
-const modelId = location.search.substring(1);
+import { Color } from 'three';
+import { IfcViewerAPI } from 'web-ifc-viewer';
 
-const modelURL = `https://ifcjs.github.io/ifcjs-crash-course/sample-apps/${modelId}`;
+const container = document.getElementById('viewer-canvas-container');
+const viewer = new IfcViewerAPI({ container, backgroundColor: new Color(0xffffff) });
+viewer.grid.setGrid();
+viewer.axes.setAxes();
 
-const iframe = document.querySelector("iframe");
+async function loadIfc(url) {
+    await viewer.IFC.setWasmPath("./node_modules/web-ifc/");
+    const model = await viewer.IFC.loadIfcUrl(url);
+    console.log(model)
+    viewer.shadowDropper.renderShadow(model.modelID);
+}
 
-iframe.src = modelURL;
+
+
+
+
+const modelId = location.search.substring(1).split('=')[1];
+
+const modelPath = `resources/IFC files/${modelId}.ifc`;
+
+loadIfc(modelPath);
+
+// const iframe = document.querySelector("iframe");
+
+// iframe.src = modelURL;

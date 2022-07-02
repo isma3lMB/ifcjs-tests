@@ -38,7 +38,7 @@ function createModelCard(model) {
   mainDiv.appendChild(innerDiv);
   mainDiv.addEventListener(
     "click",
-    () => (location.href = `model.html?${model.id}`),
+    () => (location.href = `model.html?modelId=${model.id}`),
     true
   );
   return mainDiv;
