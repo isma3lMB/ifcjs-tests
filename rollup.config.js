@@ -15,11 +15,11 @@ export default [
 // },
 
 {
-  input: 'model.js',
+  input: './src/model.js',
   output: [
     {
       format: 'esm',
-      file: 'model_bundle.js'
+      file: './dist/model_bundle.js'
     },
   ],
   plugins: [

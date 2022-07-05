@@ -121332,12 +121332,12 @@ class IfcViewerAPI {
 }
 
 const container = document.getElementById('viewer-canvas-container');
-const viewer = new IfcViewerAPI({ container, backgroundColor: new Color(0xffffff) });
+const viewer = new IfcViewerAPI({ container, backgroundColor: new Color(0x313131 ) });
 viewer.grid.setGrid();
 viewer.axes.setAxes();
 
 async function loadIfc(url) {
-    await viewer.IFC.setWasmPath("./node_modules/web-ifc/");
+    await viewer.IFC.setWasmPath("./../node_modules/web-ifc/");
     const model = await viewer.IFC.loadIfcUrl(url);
     console.log(model);
     viewer.shadowDropper.renderShadow(model.modelID);
@@ -121349,7 +121349,7 @@ async function loadIfc(url) {
 
 const modelId = location.search.substring(1).split('=')[1];
 
-const modelPath = `resources/IFC files/${modelId}.ifc`;
+const modelPath = `./../resources/IFC files/${modelId}.ifc`;
 
 loadIfc(modelPath);
 
