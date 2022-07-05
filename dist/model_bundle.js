@@ -121337,7 +121337,7 @@ viewer.grid.setGrid();
 viewer.axes.setAxes();
 
 async function loadIfc(url) {
-    await viewer.IFC.setWasmPath("./../");
+    await viewer.IFC.setWasmPath("../");
     const model = await viewer.IFC.loadIfcUrl(url);
     console.log(model);
     viewer.shadowDropper.renderShadow(model.modelID);
@@ -121349,7 +121349,7 @@ async function loadIfc(url) {
 
 const modelId = location.search.substring(1).split('=')[1];
 
-const modelPath = `./../resources/IFC files/${modelId}.ifc`;
+const modelPath = `../resources/IFC files/${modelId}.ifc`;
 
 loadIfc(modelPath);
 
