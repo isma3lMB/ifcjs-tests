@@ -19,7 +19,7 @@ async function loadIfc(url) {
 
 const modelId = location.search.substring(1).split('=')[1];
 
-const modelPath = `../resources/IFC files/${modelId}.ifc`;
+const modelPath = `./../resources/IFC files/${modelId}.ifc`;
 
 loadIfc(modelPath);
 
