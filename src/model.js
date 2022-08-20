@@ -2,8 +2,15 @@ import { Color } from 'three';
 import { IfcViewerAPI } from 'web-ifc-viewer';
 
 const container = document.getElementById('viewer-canvas-container');
-const viewer = new IfcViewerAPI({ container, backgroundColor: new Color(0x313131 ) });
+
+const isDarkMode = localStorage.getItem("isDarkMode");
+
+
+const backgroundColor = isDarkMode == "true" ? new Color(0x212121) : new Color(0xe8e8e8);
+
+const viewer = new IfcViewerAPI({ container, backgroundColor: backgroundColor });
 viewer.grid.setGrid();
+
 viewer.axes.setAxes();
 
 async function loadIfc(url) {
@@ -12,8 +19,6 @@ async function loadIfc(url) {
     console.log(model)
     viewer.shadowDropper.renderShadow(model.modelID);
 }
-
-
 
 
 

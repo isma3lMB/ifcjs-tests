@@ -1,16 +1,8 @@
 const mainContainer = document.querySelector(".main-container");
 
 const models = [
-  {
-    id: "01",
-    name: "Model #1",
-    thumbnail: "model_1.png",
-  },
-  {
-    id: "02",
-    name: "Model #2",
-    thumbnail: "model_2.png",
-  },
+  { id: "01", name: "Model #1", thumbnail: "model_1.png" },
+  { id: "02", name: "Model #2", thumbnail: "model_2.png" },
   { id: "03", name: "Model #3", thumbnail: "model_3.png" },
   { id: "04", name: "Model #4", thumbnail: "model_4.png" },
   { id: "05", name: "Model #5", thumbnail: "model_5.png" },
@@ -43,3 +35,28 @@ function createModelCard(model) {
   );
   return mainDiv;
 }
+
+const toggleButton = document.getElementById("dark-toggle");
+
+toggleButton.onchange = toogleDarkMode;
+
+function toogleDarkMode() {
+  var isDarkMode = localStorage.getItem("isDarkMode") == "true";
+  localStorage.setItem("isDarkMode", !isDarkMode);
+  console.log("toogled!");
+  refreshTheme();
+}
+
+function refreshTheme() {
+  var element = document.body;
+  var isDarkMode = localStorage.getItem("isDarkMode") == "true";
+  if (isDarkMode) {
+    element.classList.add("dark-mode");
+    toggleButton.checked = true;
+  } else {
+    element.classList.remove("dark-mode");
+    toggleButton.checked = false;
+  }
+}
+
+refreshTheme();
