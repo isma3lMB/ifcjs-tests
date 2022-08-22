@@ -280,13 +280,14 @@ transform: translateX(1em);
 
 
 
-#treeView{
+#treeView,#PropertyView{
   min-width: 10rem;
+  max-width: 20rem;
   height: 20rem;
   position: absolute;
   z-index: 2;
   border: 0.1rem rgba(65, 62, 62, 0.836) solid;
-  /* right:  1rem; */
+  right:  1rem;
   top : 1rem;
 }
 
@@ -331,7 +332,7 @@ ul, #myUL {
   display: block;
 }
 
-#tree-view-header{
+#tree-view-header,#property-view-header{
   background-color: rgba(204, 204, 204, 0.486);
   padding: 0.3rem;
   text-align: center;

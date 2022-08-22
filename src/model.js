@@ -107,6 +107,8 @@ function generateNestedList(node){
 }
 
 dragElement(document.getElementById("treeView"));
+dragElement(document.getElementById("PropertyView"));
+
 
 function dragElement(elmnt) {
     var pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
@@ -148,3 +150,17 @@ function dragElement(elmnt) {
       document.onmousemove = null;
     }
   }
+
+
+window.ondblclick = async () =>{
+  
+  var selection = await viewer.IFC.selector.pickIfcItem();
+  const properties = await viewer.IFC.getProperties(selection.modelID , selection.id);
+  
+  console.log(properties);
+
+} 
+window.onmousemove = async () => await viewer.IFC.selector.prePickIfcItem();
+
+viewer.IFC.selector.defSelectMat.color = new Color(0x00ffff);
+viewer.IFC.selector.defSelectMat.depthTest = true;
