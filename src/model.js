@@ -41,15 +41,7 @@ const modelPath = `./resources/IFC_Files/${modelId}.ifc`;
 
 loadIfc(modelPath);
 
-var toggler = document.getElementsByClassName("caret");
 
-// for (var i = 0; i < toggler.length; i++) {
-//   toggler[i].addEventListener("click", function() {
-//     console.log("caret element clicked");
-//     this.parentElement.querySelector(".nested").classList.toggle("active");
-//     this.classList.toggle("caret-down");
-//   });
-// }
 
 
 function nodeToString(node) {
@@ -67,7 +59,7 @@ function createParentNode(parent, node){
     span.addEventListener("click", function(event) {
         console.log(span.dataset.expressID);
         
-        this.parentElement.querySelector(".nested").classList.toggle("active");
+        this.parentElement.querySelector(".nested").classList.toggle("active-tree");
         this.classList.toggle("caret-down");
       })
 
@@ -107,8 +99,9 @@ function generateNestedList(node){
 }
 
 
-dragElement(document.getElementById("treeView"));
-dragElement(document.getElementById("PropertyView"));
+dragElement(document.getElementById("tree-view"));
+dragElement(document.getElementById("property-view"));
+dragElement(document.getElementById("viewer-toolbox"));
 
 
 function dragElement(elmnt) {
@@ -156,14 +149,15 @@ function dragElement(elmnt) {
 window.ondblclick = async () =>{
   
   var selection = await viewer.IFC.selector.pickIfcItem();
+  if (! selection){
+    viewer.IFC.selector.unpickIfcItems();
+    return;
+  }
+
   const properties = await viewer.IFC.getProperties(selection.modelID , selection.id,true,true);
   
-  // propMenuContent.textContent = JSON.stringify(getAttributesFromProperties(properties));
-  // propMenuContent.innerText = JSON.stringify(getPsetsFromProperties(properties));
   console.log(properties)
-  // clear here
   removeChildren(propMenuContent);
-  // Populate
   populatePropPanel(getAttributesFromProperties(properties),getPsetsFromProperties(properties))
 
 
@@ -252,4 +246,4 @@ function generateSection(name, keyValues){
 
 
 viewer.IFC.selector.defSelectMat.color = new Color(0x00ffff);
-viewer.IFC.selector.defSelectMat.depthTest = true;
+// viewer.IFC.selector.defSelectMat.depthTest = true;
