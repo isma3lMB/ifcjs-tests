@@ -121434,6 +121434,7 @@ function generateNestedList(node){
 
 }
 
+
 dragElement(document.getElementById("treeView"));
 dragElement(document.getElementById("PropertyView"));
 
@@ -121483,12 +121484,98 @@ function dragElement(elmnt) {
 window.ondblclick = async () =>{
   
   var selection = await viewer.IFC.selector.pickIfcItem();
-  const properties = await viewer.IFC.getProperties(selection.modelID , selection.id);
+  const properties = await viewer.IFC.getProperties(selection.modelID , selection.id,true,true);
   
+  // propMenuContent.textContent = JSON.stringify(getAttributesFromProperties(properties));
+  // propMenuContent.innerText = JSON.stringify(getPsetsFromProperties(properties));
   console.log(properties);
+  // clear here
+  removeChildren(propMenuContent);
+  // Populate
+  populatePropPanel(getAttributesFromProperties(properties),getPsetsFromProperties(properties));
+
 
 }; 
 window.onmousemove = async () => await viewer.IFC.selector.prePickIfcItem();
+
+const propMenuContent = document.getElementById("property-view-content");
+
+function removeChildren(htmlElement){
+  while(htmlElement.firstChild){
+    htmlElement.removeChild(htmlElement.firstChild);
+  }
+
+}
+
+function getAttributesFromProperties(properties){
+  return {
+    Name : (properties.Name)? properties.Name.value : "undefined",
+    GlobalId : properties.GlobalId.value,
+    ObjectType: (properties.ObjectType)? properties.ObjectType.value : "undefined",
+    PredefinedType : (properties.PredefinedType)? properties.PredefinedType.value : "",
+    Tag : (properties.Tag)? properties.Tag.value : "",
+    ExpressId : properties.expressID
+  }
+}
+function getPsetsFromProperties(properties){
+  const psetsMap = {};
+  if (properties.psets){
+    properties.psets.map(pset => {
+      const props = {};
+      pset.HasProperties.map(prop => {
+        props[prop.Name.value] = prop.NominalValue.value; // Should check for property type prop.constructor.name
+      });
+
+      psetsMap[pset.Name.value] = props;
+    });
+  }
+
+  return psetsMap;
+}
+function populatePropPanel(attributes, properties){
+  generateSection("Attributes" , attributes);
+  for (var pset in properties){
+    generateSection(pset, properties[pset]);
+  }
+}
+
+function generateSection(name, keyValues){
+  const title = document.createElement("button");
+  title.textContent = name;
+  title.classList.add("accordion");
+  
+  const panel = document.createElement("div");
+  panel.classList.add("panel");
+  for (var propName in keyValues){
+    const propLine = document.createElement("div");
+    propLine.classList.add('prop-line');
+    const name = document.createElement('p');
+    name.textContent = propName;
+    const value = document.createElement('p');
+    value.textContent = keyValues[propName];
+    propLine.appendChild(name);
+    propLine.appendChild(value);
+    panel.appendChild(propLine);
+  }
+  title.classList.add("active");
+  propMenuContent.appendChild(title);
+  propMenuContent.appendChild(panel);
+  title.addEventListener("click", function() {
+    /* Toggle between adding and removing the "active" class,
+    to highlight the button that controls the panel */
+    this.classList.toggle("active");
+
+    /* Toggle between hiding and showing the active panel */
+    var panel = this.nextElementSibling;
+    if (panel.currentStyle.display === "none") {
+    panel.style.display = "block";
+    } else {
+    panel.style.display = "none";
+    }
+});
+
+}
+
 
 viewer.IFC.selector.defSelectMat.color = new Color(0x00ffff);
 viewer.IFC.selector.defSelectMat.depthTest = true;

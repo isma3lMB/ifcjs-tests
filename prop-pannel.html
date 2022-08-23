@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+
+  <body>
+    <style>
+
+    * {
+    border: 0;
+    margin: 0;
+    /* box-sizing: border-box; */
+    /* overflow: hidden; */
+    }
+
+      #Props {
+        border: solid rgba(0, 0, 0, 0.541) 2px;
+        height: 18rem;
+        width: 14rem;
+        border-radius: 0.5rem;
+        box-sizing: border-box;
+        position: absolute;
+        text-align: center;
+        overflow: auto;
+    }
+      #Props > span {
+        background-color: gray;
+        display: block;
+        font-size: larger;
+      }
+
+
+      /* Style the buttons that are used to open and close the accordion panel */
+        .accordion {
+        background-color: #eee;
+        color: #444;
+        cursor: pointer;
+        padding: 0.4rem;
+        width: 100%;
+        text-align: left;
+        border: none;
+        outline: none;
+        transition: 0.4s;
+        font-size: medium;
+        }
+
+        /* Add a background color to the button if it is clicked on (add the .active class with JS), and when you move the mouse over it (hover) */
+        .active, .accordion:hover {
+        background-color: #ccc;
+        }
+
+        /* Style the accordion panel. Note: hidden by default */
+        .panel {
+        padding: 0 0.2rem;
+        background-color: white;
+        display: none;
+        overflow: hidden;
+        }
+        .accordion:after {
+        content: '\02795'; /* Unicode character for "plus" sign (+) */
+        font-size: 13px;
+        color: #777;
+        float: right;
+        margin-left: 5px;
+        }
+
+        .active:after {
+        content: "\2796"; /* Unicode character for "minus" sign (-) */
+        }
+        .prop-line{
+            display: flex;
+            justify-content: space-between;
+            padding:  0.2rem 0 0.2rem 0 ;
+        }
+        .prop-line>p:first-child{
+            font-weight: bold;
+            margin-right: 0.3rem;
+        }
+
+    </style>
+
+    <div id="Props">
+      <span> Properties </span>
+
+      <button class="accordion">Section 1</button>
+      <div class="panel">
+        <div class="prop-line">
+            <p>Name</p>
+            <p>Some cool name here doss dfojsd ojdio</p>
+        </div>
+        <div class="prop-line">
+            <p>Guid</p>
+            <p>sdffd215sd5f44854sdf</p>
+        </div>
+      </div>
+      <button class="accordion">Section 1</button>
+      <div class="panel">
+        <div class="prop-line">
+            <p>Name</p>
+            <p>Some cool name here doss dfojsd ojdio</p>
+        </div>
+        <div class="prop-line">
+            <p>Guid</p>
+            <p>sdffd215sd5f44854sdf</p>
+        </div>
+      </div>
+    
+
+     
+    </div>
+
+    <script>
+        var acc = document.getElementsByClassName("accordion");
+        var i;
+
+        for (i = 0; i < acc.length; i++) {
+        acc[i].addEventListener("click", function() {
+            /* Toggle between adding and removing the "active" class,
+            to highlight the button that controls the panel */
+            this.classList.toggle("active");
+
+            /* Toggle between hiding and showing the active panel */
+            var panel = this.nextElementSibling;
+            if (panel.style.display === "block") {
+            panel.style.display = "none";
+            } else {
+            panel.style.display = "block";
+            }
+        });
+}
+
+    </script>
+  </body>
+</html>
