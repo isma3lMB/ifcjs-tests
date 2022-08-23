@@ -241,7 +241,7 @@ function generateSection(name, keyValues){
 
     /* Toggle between hiding and showing the active panel */
     var panel = this.nextElementSibling;
-    if (panel.currentStyle.display === "none") {
+    if (panel.style.display === "none") {
     panel.style.display = "block";
     } else {
     panel.style.display = "none";
