@@ -38964,25 +38964,25 @@ class ImageBitmapLoader extends Loader {
 
 ImageBitmapLoader.prototype.isImageBitmapLoader = true;
 
-let _context;
+let _context$1;
 
 const AudioContext = {
 
 	getContext: function () {
 
-		if ( _context === undefined ) {
+		if ( _context$1 === undefined ) {
 
-			_context = new ( window.AudioContext || window.webkitAudioContext )();
+			_context$1 = new ( window.AudioContext || window.webkitAudioContext )();
 
 		}
 
-		return _context;
+		return _context$1;
 
 	},
 
 	setContext: function ( value ) {
 
-		_context = value;
+		_context$1 = value;
 
 	}
 
@@ -93559,7 +93559,7 @@ const closestPointLineToLine = ( function () {
 		const v32 = dir2;
 
 		v02.subVectors( v0, v2 );
-		dir1.subVectors( l1.end, l2.start );
+		dir1.subVectors( l1.end, l1.start );
 		dir2.subVectors( l2.end, l2.start );
 
 		// float d0232 = v02.Dot(v32);
@@ -94016,12 +94016,12 @@ ExtendedTriangle.prototype.intersectsTriangle = ( function () {
 
 			}
 
-			if ( count1 === 1 && this.containsPoint( edge1.start ) ) {
+			if ( count1 === 1 && this.containsPoint( edge1.end ) ) {
 
 				if ( target ) {
 
-					target.start.copy( edge1.start );
-					target.end.copy( edge1.start );
+					target.start.copy( edge1.end );
+					target.end.copy( edge1.end );
 
 				}
 
@@ -94074,12 +94074,12 @@ ExtendedTriangle.prototype.intersectsTriangle = ( function () {
 
 			}
 
-			if ( count2 === 1 && this.containsPoint( edge2.start ) ) {
+			if ( count2 === 1 && this.containsPoint( edge2.end ) ) {
 
 				if ( target ) {
 
-					target.start.copy( edge2.start );
-					target.end.copy( edge2.start );
+					target.start.copy( edge2.end );
+					target.end.copy( edge2.end );
 
 				}
 
@@ -99918,23 +99918,27 @@ class Data {
 
   constructor(state) {
     this.state = state;
-    this.is_loaded = false;
-    this.work_plans = {};
+    this.isLoaded = false;
+    this.workPlans = {};
     this.workSchedules = {};
-    this.work_calendars = {};
-    this.work_times = {};
-    this.recurrence_patterns = {};
-    this.time_periods = {};
+    this.workCalendars = {};
+    this.workTimes = {};
+    this.recurrencePatterns = {};
+    this.timePeriods = {};
     this.tasks = {};
-    this.task_times = {};
-    this.lag_times = {};
+    this.taskTimes = {};
+    this.lagTimes = {};
     this.sequences = {};
     this.utils = new IFCUtils(this.state);
   }
 
   async load(modelID) {
     await this.loadTasks(modelID);
-    this.loadWorkSchedules(modelID);
+    await this.loadWorkSchedules(modelID);
+    await this.loadWorkCalendars(modelID);
+    await this.loadWorkTimes(modelID);
+    await this.loadTimePeriods(modelID);
+    this.isLoaded = true;
   }
 
   async loadWorkSchedules(modelID) {
@@ -99958,7 +99962,6 @@ class Data {
 
   async loadWorkScheduleRelatedObjects(modelID) {
     let relsControls = await this.utils.byType(modelID, "IfcRelAssignsToControl");
-    console.log("Rel Controls:", relsControls);
     for (let i = 0; i < relsControls.length; i++) {
       let relControls = relsControls[i];
       let relatingControl = await this.utils.byId(modelID, relControls.RelatingControl.value);
@@ -99977,10 +99980,11 @@ class Data {
       let task = tasks[i];
       this.tasks[task.expressID] = {
         "Id": task.expressID,
-        "Name": task.Name.value,
+        "Name": ((task.Name) ? task.Name.value : ""),
+        "PredefinedType": ((task.PredefinedType) ? task.PredefinedType.value : ""),
         "TaskTime": ((task.TaskTime) ? await this.utils.byId(modelID, task.TaskTime.value) : ""),
-        "Identification": task.Identification.value,
-        "IsMilestone": task.IsMilestone.value,
+        "Identification": ((task.Identification) ? task.Identification.value : ""),
+        "IsMilestone": ((task.IsMilestone) ? task.IsMilestone.value : ""),
         "IsPredecessorTo": [],
         "IsSucessorFrom": [],
         "Inputs": [],
@@ -99990,12 +99994,14 @@ class Data {
         "Nests": [],
         "IsNestedBy": [],
         "OperatesOn": [],
+        "HasAssignmentsWorkCalendars": [],
       };
     }
     await this.loadTaskSequence(modelID);
     await this.loadTaskOutputs(modelID);
     await this.loadTaskNesting(modelID);
     await this.loadTaskOperations(modelID);
+    await this.loadAssignementsWorkCalendar(modelID);
   }
 
   async loadTaskSequence(modelID) {
@@ -100007,11 +100013,7 @@ class Data {
         let related_process = relSequence.RelatedProcess.value;
         let relatingProcess = relSequence.RelatingProcess.value;
         this.tasks[relatingProcess]["IsPredecessorTo"].push(relSequence.expressID);
-        let successorData = {
-          "RelId": relSequence.expressID,
-          "Rel": relSequence
-        };
-        this.tasks[related_process]["IsSucessorFrom"].push(successorData);
+        this.tasks[related_process]["IsSucessorFrom"].push(relSequence.expressID);
       }
     }
   }
@@ -100020,9 +100022,9 @@ class Data {
     let rels_assigns_to_product = await this.utils.byType(modelID, "IfcRelAssignsToProduct");
     for (let i = 0; i < rels_assigns_to_product.length; i++) {
       let relAssignsToProduct = rels_assigns_to_product[i];
-      let relatingProduct = await this.utils.byId(modelID, relAssignsToProduct.RelatingProduct.value);
       let relatedObject = await this.utils.byId(modelID, relAssignsToProduct.RelatedObjects[0].value);
       if (this.utils.isA(relatedObject, "IfcTask")) {
+        let relatingProduct = await this.utils.byId(modelID, relAssignsToProduct.RelatingProduct.value);
         this.tasks[relatedObject.expressID]["Outputs"].push(relatingProduct.expressID);
       }
     }
@@ -100033,8 +100035,8 @@ class Data {
     for (let i = 0; i < rels_nests.length; i++) {
       let relNests = rels_nests[i];
       let relating_object = await this.utils.byId(modelID, relNests.RelatingObject.value);
-      let relatedObjects = relNests.RelatedObjects;
       if (this.utils.isA(relating_object, "IfcTask")) {
+        let relatedObjects = relNests.RelatedObjects;
         for (var object_index = 0; object_index < relatedObjects.length; object_index++) {
           this.tasks[relating_object.expressID]["IsNestedBy"].push(relatedObjects[object_index].value);
           this.tasks[relatedObjects[object_index].value]["Nests"].push(relating_object.expressID);
@@ -100048,14 +100050,67 @@ class Data {
     for (let i = 0; i < relsAssignsToProcess.length; i++) {
       let relAssignToProcess = relsAssignsToProcess[i];
       let relatingProcess = await this.utils.byId(modelID, relAssignToProcess.RelatingProcess.value);
-      let relatedObjects = relAssignToProcess.RelatedObjects;
       if (this.utils.isA(relatingProcess, "IfcTask")) {
+        let relatedObjects = relAssignToProcess.RelatedObjects;
         for (var object_index = 0; object_index < relatedObjects.length; object_index++) {
           this.tasks[relatingProcess.expressID]["OperatesOn"].push(relatedObjects[object_index].value);
-          console.log(relatingProcess.expressID);
-          console.log("Has Operations");
         }
       }
+    }
+  }
+
+  async loadAssignementsWorkCalendar(modelID) {
+    let relsAssignsToControl = await this.utils.byType(modelID, "IfcRelAssignsToControl");
+    for (let i = 0; i < relsAssignsToControl.length; i++) {
+      let relAssignsToControl = relsAssignsToControl[i];
+      let relatingControl = await this.utils.byId(modelID, relAssignsToControl.RelatingControl.value);
+      if (this.utils.isA(relatingControl, "IfcWorkCalendar")) {
+        let relatedObjects = relAssignsToControl.RelatedObjects;
+        for (var object_index = 0; object_index < relatedObjects.length; object_index++) {
+          this.tasks[relatedObjects[object_index].value]["HasAssignmentsWorkCalendars"].push(relatingControl.expressID);
+        }
+      }
+    }
+  }
+
+  async loadWorkCalendars(modelID) {
+    let workCalendars = await this.utils.byType(modelID, "IfcWorkCalendar");
+    for (let i = 0; i < workCalendars.length; i++) {
+      let workCalendar = workCalendars[i];
+      let workCalenderData = {
+        "Id": workCalendar.expressID,
+        "Name": ((workCalendar.Name) ? workCalendar.Name.value : ""),
+        "Description": ((workCalendar.Description) ? workCalendar.Description.value : ""),
+        "WorkingTimes": ((workCalendar.WorkingTimes) ? workCalendar.WorkingTimes : []),
+        "ExceptionTimes": ((workCalendar.ExceptionTimes) ? workCalendar.ExceptionTimes : []),
+      };
+      this.workCalendars[workCalendar.expressID] = workCalenderData;
+    }
+  }
+
+  async loadWorkTimes(modelID) {
+    let workTimes = await this.utils.byType(modelID, "IfcWorkTime");
+    for (let i = 0; i < workTimes.length; i++) {
+      let workTime = workTimes[i];
+      let workTimeData = {
+        "Name": ((workTime.Name) ? workTime.Name.value : ""),
+        "RecurrencePattern": ((workTime.RecurrencePattern) ? await this.utils.byId(modelID, workTime.RecurrencePattern.value) : ""),
+        "Start": ((workTime.Start) ? new Date(workTime.Start.value) : ""),
+        "Finish": ((workTime.Finish) ? new Date(workTime.Finish.value) : ""),
+      };
+      this.workTimes[workTime.expressID] = workTimeData;
+    }
+  }
+
+  async loadTimePeriods(modelID) {
+    let timePeriods = await this.utils.byType(modelID, "IfcTimePeriod");
+    for (let i = 0; i < timePeriods.length; i++) {
+      let timePeriod = timePeriods[i];
+      let workTimeData = {
+        "StartTime": ((timePeriod.StartTime) ? new Date(timePeriod.StartTime.value) : ""),
+        "EndTime": ((timePeriod.EndTime) ? new Date(timePeriod.EndTime.value) : ""),
+      };
+      this.timePeriods[timePeriod.expressID] = workTimeData;
     }
   }
 
@@ -100369,14 +100424,21 @@ class IfcSelection extends IfcComponent {
             return { modelID: mesh.modelID, id };
         };
         this.pickByID = async (modelID, ids, focusSelection = false, removePrevious = true) => {
+            const mesh = this.context.items.ifcModels.find((model) => model.modelID === modelID);
+            if (!mesh)
+                return;
             if (removePrevious) {
                 this.modelIDs.clear();
             }
             this.modelIDs.add(modelID);
-            const mesh = this.newSelection(modelID, ids, removePrevious);
-            mesh.renderOrder = this.renderOrder;
+            const selected = this.newSelection(modelID, ids, removePrevious);
+            selected.visible = true;
+            selected.position.copy(mesh.position);
+            selected.rotation.copy(mesh.rotation);
+            selected.scale.copy(mesh.scale);
+            selected.renderOrder = this.renderOrder;
             if (focusSelection)
-                await this.focusSelection(mesh);
+                await this.focusSelection(selected);
         };
         this.newSelection = (modelID, ids, removePrevious) => {
             const mesh = this.loader.ifcManager.createSubset({
@@ -100988,22 +101050,28 @@ class DropboxAPI extends IfcComponent {
  * (c) 2017 @yomotsu
  * Released under the MIT License.
  */
+// see https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent/buttons#value
+const MOUSE_BUTTON = {
+    LEFT: 1,
+    RIGHT: 2,
+    MIDDLE: 4,
+};
 const ACTION = Object.freeze({
     NONE: 0,
     ROTATE: 1,
     TRUCK: 2,
-    OFFSET: 3,
-    DOLLY: 4,
-    ZOOM: 5,
-    TOUCH_ROTATE: 6,
-    TOUCH_TRUCK: 7,
-    TOUCH_OFFSET: 8,
-    TOUCH_DOLLY: 9,
-    TOUCH_ZOOM: 10,
-    TOUCH_DOLLY_TRUCK: 11,
-    TOUCH_DOLLY_OFFSET: 12,
-    TOUCH_ZOOM_TRUCK: 13,
-    TOUCH_ZOOM_OFFSET: 14,
+    OFFSET: 4,
+    DOLLY: 8,
+    ZOOM: 16,
+    TOUCH_ROTATE: 32,
+    TOUCH_TRUCK: 64,
+    TOUCH_OFFSET: 128,
+    TOUCH_DOLLY: 256,
+    TOUCH_ZOOM: 512,
+    TOUCH_DOLLY_TRUCK: 1024,
+    TOUCH_DOLLY_OFFSET: 2048,
+    TOUCH_ZOOM_TRUCK: 4096,
+    TOUCH_ZOOM_OFFSET: 8192,
 });
 function isPerspectiveCamera(camera) {
     return camera.isPerspectiveCamera;
@@ -101454,8 +101522,6 @@ class CameraControls extends EventDispatcher {
             wheel: isPerspectiveCamera(this._camera) ? ACTION.DOLLY :
                 isOrthographicCamera(this._camera) ? ACTION.ZOOM :
                     ACTION.NONE,
-            shiftLeft: ACTION.NONE,
-            // We can also add altLeft and etc if someone wants...
         };
         this.touches = {
             one: ACTION.TOUCH_ROTATE,
@@ -101478,19 +101544,68 @@ class CameraControls extends EventDispatcher {
                     pointerId: event.pointerId,
                     clientX: event.clientX,
                     clientY: event.clientY,
+                    deltaX: 0,
+                    deltaY: 0,
                 };
                 this._activePointers.push(pointer);
-                switch (event.button) {
-                    case THREE.MOUSE.LEFT:
-                        this._state = event.shiftKey ? this.mouseButtons.shiftLeft : this.mouseButtons.left;
-                        break;
-                    case THREE.MOUSE.MIDDLE:
-                        this._state = this.mouseButtons.middle;
-                        break;
-                    case THREE.MOUSE.RIGHT:
-                        this._state = this.mouseButtons.right;
-                        break;
-                }
+                // eslint-disable-next-line no-undef
+                this._domElement.ownerDocument.removeEventListener('pointermove', onPointerMove, { passive: false });
+                this._domElement.ownerDocument.removeEventListener('pointerup', onPointerUp);
+                this._domElement.ownerDocument.addEventListener('pointermove', onPointerMove, { passive: false });
+                this._domElement.ownerDocument.addEventListener('pointerup', onPointerUp);
+                startDragging(event);
+            };
+            const onMouseDown = (event) => {
+                if (!this._enabled)
+                    return;
+                const pointer = {
+                    pointerId: 0,
+                    clientX: event.clientX,
+                    clientY: event.clientY,
+                    deltaX: 0,
+                    deltaY: 0,
+                };
+                this._activePointers.push(pointer);
+                // see https://github.com/microsoft/TypeScript/issues/32912#issuecomment-522142969
+                // eslint-disable-next-line no-undef
+                this._domElement.ownerDocument.removeEventListener('mousemove', onMouseMove);
+                this._domElement.ownerDocument.removeEventListener('mouseup', onMouseUp);
+                this._domElement.ownerDocument.addEventListener('mousemove', onMouseMove);
+                this._domElement.ownerDocument.addEventListener('mouseup', onMouseUp);
+                startDragging(event);
+            };
+            const onTouchStart = (event) => {
+                if (!this._enabled)
+                    return;
+                event.preventDefault();
+                Array.prototype.forEach.call(event.changedTouches, (touch) => {
+                    const pointer = {
+                        pointerId: touch.identifier,
+                        clientX: touch.clientX,
+                        clientY: touch.clientY,
+                        deltaX: 0,
+                        deltaY: 0,
+                    };
+                    this._activePointers.push(pointer);
+                });
+                // eslint-disable-next-line no-undef
+                this._domElement.ownerDocument.removeEventListener('touchmove', onTouchMove, { passive: false });
+                this._domElement.ownerDocument.removeEventListener('touchend', onTouchEnd);
+                this._domElement.ownerDocument.addEventListener('touchmove', onTouchMove, { passive: false });
+                this._domElement.ownerDocument.addEventListener('touchend', onTouchEnd);
+                startDragging(event);
+            };
+            const onPointerMove = (event) => {
+                if (event.cancelable)
+                    event.preventDefault();
+                const pointerId = event.pointerId;
+                const pointer = this._findPointerById(pointerId);
+                if (!pointer)
+                    return;
+                pointer.clientX = event.clientX;
+                pointer.clientY = event.clientY;
+                pointer.deltaX = event.movementX;
+                pointer.deltaY = event.movementY;
                 if (event.pointerType === 'touch') {
                     switch (this._activePointers.length) {
                         case 1:
@@ -101504,80 +101619,18 @@ class CameraControls extends EventDispatcher {
                             break;
                     }
                 }
-                // eslint-disable-next-line no-undef
-                this._domElement.ownerDocument.removeEventListener('pointermove', onPointerMove, { passive: false });
-                this._domElement.ownerDocument.removeEventListener('pointerup', onPointerUp);
-                this._domElement.ownerDocument.addEventListener('pointermove', onPointerMove, { passive: false });
-                this._domElement.ownerDocument.addEventListener('pointerup', onPointerUp);
-                startDragging();
-            };
-            const onMouseDown = (event) => {
-                if (!this._enabled)
-                    return;
-                const pointer = {
-                    pointerId: 0,
-                    clientX: event.clientX,
-                    clientY: event.clientY,
-                };
-                this._activePointers.push(pointer);
-                switch (event.button) {
-                    case THREE.MOUSE.LEFT:
-                        this._state = event.shiftKey ? this.mouseButtons.shiftLeft : this.mouseButtons.left;
-                        break;
-                    case THREE.MOUSE.MIDDLE:
-                        this._state = this.mouseButtons.middle;
-                        break;
-                    case THREE.MOUSE.RIGHT:
-                        this._state = this.mouseButtons.right;
-                        break;
+                else {
+                    this._state = 0;
+                    if ((event.buttons & MOUSE_BUTTON.LEFT) === MOUSE_BUTTON.LEFT) {
+                        this._state = this._state | this.mouseButtons.left;
+                    }
+                    if ((event.buttons & MOUSE_BUTTON.MIDDLE) === MOUSE_BUTTON.MIDDLE) {
+                        this._state = this._state | this.mouseButtons.middle;
+                    }
+                    if ((event.buttons & MOUSE_BUTTON.RIGHT) === MOUSE_BUTTON.RIGHT) {
+                        this._state = this._state | this.mouseButtons.right;
+                    }
                 }
-                // see https://github.com/microsoft/TypeScript/issues/32912#issuecomment-522142969
-                // eslint-disable-next-line no-undef
-                this._domElement.ownerDocument.removeEventListener('mousemove', onMouseMove);
-                this._domElement.ownerDocument.removeEventListener('mouseup', onMouseUp);
-                this._domElement.ownerDocument.addEventListener('mousemove', onMouseMove);
-                this._domElement.ownerDocument.addEventListener('mouseup', onMouseUp);
-                startDragging();
-            };
-            const onTouchStart = (event) => {
-                if (!this._enabled)
-                    return;
-                event.preventDefault();
-                Array.prototype.forEach.call(event.changedTouches, (touch) => {
-                    const pointer = {
-                        pointerId: touch.identifier,
-                        clientX: touch.clientX,
-                        clientY: touch.clientY,
-                    };
-                    this._activePointers.push(pointer);
-                });
-                switch (this._activePointers.length) {
-                    case 1:
-                        this._state = this.touches.one;
-                        break;
-                    case 2:
-                        this._state = this.touches.two;
-                        break;
-                    case 3:
-                        this._state = this.touches.three;
-                        break;
-                }
-                // eslint-disable-next-line no-undef
-                this._domElement.ownerDocument.removeEventListener('touchmove', onTouchMove, { passive: false });
-                this._domElement.ownerDocument.removeEventListener('touchend', onTouchEnd);
-                this._domElement.ownerDocument.addEventListener('touchmove', onTouchMove, { passive: false });
-                this._domElement.ownerDocument.addEventListener('touchend', onTouchEnd);
-                startDragging();
-            };
-            const onPointerMove = (event) => {
-                if (event.cancelable)
-                    event.preventDefault();
-                const pointerId = event.pointerId;
-                const pointer = this._findPointerById(pointerId);
-                if (!pointer)
-                    return;
-                pointer.clientX = event.clientX;
-                pointer.clientY = event.clientY;
                 dragging();
             };
             const onMouseMove = (event) => {
@@ -101586,6 +101639,18 @@ class CameraControls extends EventDispatcher {
                     return;
                 pointer.clientX = event.clientX;
                 pointer.clientY = event.clientY;
+                pointer.deltaX = event.movementX;
+                pointer.deltaY = event.movementY;
+                this._state = 0;
+                if ((event.buttons & MOUSE_BUTTON.LEFT) === MOUSE_BUTTON.LEFT) {
+                    this._state = this._state | this.mouseButtons.left;
+                }
+                if ((event.buttons & MOUSE_BUTTON.MIDDLE) === MOUSE_BUTTON.MIDDLE) {
+                    this._state = this._state | this.mouseButtons.middle;
+                }
+                if ((event.buttons & MOUSE_BUTTON.RIGHT) === MOUSE_BUTTON.RIGHT) {
+                    this._state = this._state | this.mouseButtons.right;
+                }
                 dragging();
             };
             const onTouchMove = (event) => {
@@ -101598,6 +101663,7 @@ class CameraControls extends EventDispatcher {
                         return;
                     pointer.clientX = touch.clientX;
                     pointer.clientY = touch.clientY;
+                    // touch event does not have movementX and movementY.
                 });
                 dragging();
             };
@@ -101702,7 +101768,7 @@ class CameraControls extends EventDispatcher {
                     return;
                 event.preventDefault();
             };
-            const startDragging = () => {
+            const startDragging = (event) => {
                 if (!this._enabled)
                     return;
                 extractClientCoordFromEvent(this._activePointers, _v2);
@@ -101721,68 +101787,86 @@ class CameraControls extends EventDispatcher {
                     const y = (this._activePointers[0].clientY + this._activePointers[1].clientY) * 0.5;
                     lastDragPosition.set(x, y);
                 }
+                if ('touches' in event ||
+                    'pointerType' in event && event.pointerType === 'touch') {
+                    switch (this._activePointers.length) {
+                        case 1:
+                            this._state = this.touches.one;
+                            break;
+                        case 2:
+                            this._state = this.touches.two;
+                            break;
+                        case 3:
+                            this._state = this.touches.three;
+                            break;
+                    }
+                }
+                else {
+                    this._state = 0;
+                    if ((event.buttons & MOUSE_BUTTON.LEFT) === MOUSE_BUTTON.LEFT) {
+                        this._state = this._state | this.mouseButtons.left;
+                    }
+                    if ((event.buttons & MOUSE_BUTTON.MIDDLE) === MOUSE_BUTTON.MIDDLE) {
+                        this._state = this._state | this.mouseButtons.middle;
+                    }
+                    if ((event.buttons & MOUSE_BUTTON.RIGHT) === MOUSE_BUTTON.RIGHT) {
+                        this._state = this._state | this.mouseButtons.right;
+                    }
+                }
                 this.dispatchEvent({ type: 'controlstart' });
             };
             const dragging = () => {
                 if (!this._enabled)
                     return;
                 extractClientCoordFromEvent(this._activePointers, _v2);
-                const deltaX = lastDragPosition.x - _v2.x;
-                const deltaY = lastDragPosition.y - _v2.y;
+                // When pointer lock is enabled clientX, clientY, screenX, and screenY remain 0.
+                // If pointer lock is enabled, use the Delta directory, and assume active-pointer is not multiple.
+                const isPointerLockActive = this._domElement && document.pointerLockElement === this._domElement;
+                const deltaX = isPointerLockActive ? -this._activePointers[0].deltaX : lastDragPosition.x - _v2.x;
+                const deltaY = isPointerLockActive ? -this._activePointers[0].deltaY : lastDragPosition.y - _v2.y;
                 lastDragPosition.copy(_v2);
-                switch (this._state) {
-                    case ACTION.ROTATE:
-                    case ACTION.TOUCH_ROTATE: {
-                        this._rotateInternal(deltaX, deltaY);
-                        break;
-                    }
-                    case ACTION.DOLLY:
-                    case ACTION.ZOOM: {
-                        const dollyX = this.dollyToCursor ? (dragStartPosition.x - this._elementRect.x) / this._elementRect.width * 2 - 1 : 0;
-                        const dollyY = this.dollyToCursor ? (dragStartPosition.y - this._elementRect.y) / this._elementRect.height * -2 + 1 : 0;
-                        this._state === ACTION.DOLLY ?
-                            this._dollyInternal(deltaY * TOUCH_DOLLY_FACTOR, dollyX, dollyY) :
-                            this._zoomInternal(deltaY * TOUCH_DOLLY_FACTOR, dollyX, dollyY);
-                        break;
-                    }
-                    case ACTION.TOUCH_DOLLY:
-                    case ACTION.TOUCH_ZOOM:
-                    case ACTION.TOUCH_DOLLY_TRUCK:
-                    case ACTION.TOUCH_ZOOM_TRUCK:
-                    case ACTION.TOUCH_DOLLY_OFFSET:
-                    case ACTION.TOUCH_ZOOM_OFFSET: {
-                        const dx = _v2.x - this._activePointers[1].clientX;
-                        const dy = _v2.y - this._activePointers[1].clientY;
-                        const distance = Math.sqrt(dx * dx + dy * dy);
-                        const dollyDelta = dollyStart.y - distance;
-                        dollyStart.set(0, distance);
-                        const dollyX = this.dollyToCursor ? (lastDragPosition.x - this._elementRect.x) / this._elementRect.width * 2 - 1 : 0;
-                        const dollyY = this.dollyToCursor ? (lastDragPosition.y - this._elementRect.y) / this._elementRect.height * -2 + 1 : 0;
-                        this._state === ACTION.TOUCH_DOLLY ||
-                            this._state === ACTION.TOUCH_DOLLY_TRUCK ||
-                            this._state === ACTION.TOUCH_DOLLY_OFFSET ?
-                            this._dollyInternal(dollyDelta * TOUCH_DOLLY_FACTOR, dollyX, dollyY) :
-                            this._zoomInternal(dollyDelta * TOUCH_DOLLY_FACTOR, dollyX, dollyY);
-                        if (this._state === ACTION.TOUCH_DOLLY_TRUCK ||
-                            this._state === ACTION.TOUCH_ZOOM_TRUCK) {
-                            this._truckInternal(deltaX, deltaY, false);
-                        }
-                        else if (this._state === ACTION.TOUCH_DOLLY_OFFSET ||
-                            this._state === ACTION.TOUCH_ZOOM_OFFSET) {
-                            this._truckInternal(deltaX, deltaY, true);
-                        }
-                        break;
-                    }
-                    case ACTION.TRUCK:
-                    case ACTION.TOUCH_TRUCK: {
-                        this._truckInternal(deltaX, deltaY, false);
-                        break;
-                    }
-                    case ACTION.OFFSET:
-                    case ACTION.TOUCH_OFFSET: {
-                        this._truckInternal(deltaX, deltaY, true);
-                        break;
-                    }
+                if ((this._state & ACTION.ROTATE) === ACTION.ROTATE ||
+                    (this._state & ACTION.TOUCH_ROTATE) === ACTION.TOUCH_ROTATE) {
+                    this._rotateInternal(deltaX, deltaY);
+                }
+                if ((this._state & ACTION.DOLLY) === ACTION.DOLLY ||
+                    (this._state & ACTION.ZOOM) === ACTION.ZOOM) {
+                    const dollyX = this.dollyToCursor ? (dragStartPosition.x - this._elementRect.x) / this._elementRect.width * 2 - 1 : 0;
+                    const dollyY = this.dollyToCursor ? (dragStartPosition.y - this._elementRect.y) / this._elementRect.height * -2 + 1 : 0;
+                    this._state === ACTION.DOLLY ?
+                        this._dollyInternal(deltaY * TOUCH_DOLLY_FACTOR, dollyX, dollyY) :
+                        this._zoomInternal(deltaY * TOUCH_DOLLY_FACTOR, dollyX, dollyY);
+                }
+                if ((this._state & ACTION.TOUCH_DOLLY) === ACTION.TOUCH_DOLLY ||
+                    (this._state & ACTION.TOUCH_ZOOM) === ACTION.TOUCH_ZOOM ||
+                    (this._state & ACTION.TOUCH_DOLLY_TRUCK) === ACTION.TOUCH_DOLLY_TRUCK ||
+                    (this._state & ACTION.TOUCH_ZOOM_TRUCK) === ACTION.TOUCH_ZOOM_TRUCK ||
+                    (this._state & ACTION.TOUCH_DOLLY_OFFSET) === ACTION.TOUCH_DOLLY_OFFSET ||
+                    (this._state & ACTION.TOUCH_ZOOM_OFFSET) === ACTION.TOUCH_ZOOM_OFFSET) {
+                    const dx = _v2.x - this._activePointers[1].clientX;
+                    const dy = _v2.y - this._activePointers[1].clientY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const dollyDelta = dollyStart.y - distance;
+                    dollyStart.set(0, distance);
+                    const dollyX = this.dollyToCursor ? (lastDragPosition.x - this._elementRect.x) / this._elementRect.width * 2 - 1 : 0;
+                    const dollyY = this.dollyToCursor ? (lastDragPosition.y - this._elementRect.y) / this._elementRect.height * -2 + 1 : 0;
+                    this._state === ACTION.TOUCH_DOLLY ||
+                        this._state === ACTION.TOUCH_DOLLY_TRUCK ||
+                        this._state === ACTION.TOUCH_DOLLY_OFFSET ?
+                        this._dollyInternal(dollyDelta * TOUCH_DOLLY_FACTOR, dollyX, dollyY) :
+                        this._zoomInternal(dollyDelta * TOUCH_DOLLY_FACTOR, dollyX, dollyY);
+                }
+                if ((this._state & ACTION.TRUCK) === ACTION.TRUCK ||
+                    (this._state & ACTION.TOUCH_TRUCK) === ACTION.TOUCH_TRUCK ||
+                    (this._state & ACTION.TOUCH_DOLLY_TRUCK) === ACTION.TOUCH_DOLLY_TRUCK ||
+                    (this._state & ACTION.TOUCH_ZOOM_TRUCK) === ACTION.TOUCH_ZOOM_TRUCK) {
+                    this._truckInternal(deltaX, deltaY, false);
+                }
+                if ((this._state & ACTION.OFFSET) === ACTION.OFFSET ||
+                    (this._state & ACTION.TOUCH_OFFSET) === ACTION.TOUCH_OFFSET ||
+                    (this._state & ACTION.TOUCH_DOLLY_OFFSET) === ACTION.TOUCH_DOLLY_OFFSET ||
+                    (this._state & ACTION.TOUCH_ZOOM_OFFSET) === ACTION.TOUCH_ZOOM_OFFSET) {
+                    this._truckInternal(deltaX, deltaY, true);
                 }
                 this.dispatchEvent({ type: 'control' });
             };
@@ -101847,7 +101931,6 @@ class CameraControls extends EventDispatcher {
      *
      * ```js
      * import {
-     * 	MOUSE,
      * 	Vector2,
      * 	Vector3,
      * 	Vector4,
@@ -101861,7 +101944,6 @@ class CameraControls extends EventDispatcher {
      * } from 'three';
      *
      * const subsetOfTHREE = {
-     * 	MOUSE     : MOUSE,
      * 	Vector2   : Vector2,
      * 	Vector3   : Vector3,
      * 	Vector4   : Vector4,
@@ -102281,18 +102363,18 @@ class CameraControls extends EventDispatcher {
     }
     /**
      * Fit the viewport to the box or the bounding box of the object, using the nearest axis. paddings are in unit.
-     *
+     * set `cover: true` to fill enter screen.
      * e.g.
      * ```
      * cameraControls.fitToBox( myMesh );
      * ```
      * @param box3OrObject Axis aligned bounding box to fit the view.
      * @param enableTransition Whether to move smoothly or immediately.
-     * @param options | `<object>` { paddingTop: number, paddingLeft: number, paddingBottom: number, paddingRight: number }
+     * @param options | `<object>` { cover: boolean, paddingTop: number, paddingLeft: number, paddingBottom: number, paddingRight: number }
      * @returns Transition end promise
      * @category Methods
      */
-    fitToBox(box3OrObject, enableTransition, { paddingLeft = 0, paddingRight = 0, paddingBottom = 0, paddingTop = 0 } = {}) {
+    fitToBox(box3OrObject, enableTransition, { cover = false, paddingLeft = 0, paddingRight = 0, paddingBottom = 0, paddingTop = 0 } = {}) {
         const promises = [];
         const aabb = box3OrObject.isBox3
             ? _box3A.copy(box3OrObject)
@@ -102306,11 +102388,12 @@ class CameraControls extends EventDispatcher {
         const phi = roundToStep(this._sphericalEnd.phi, PI_HALF);
         promises.push(this.rotateTo(theta, phi, enableTransition));
         const normal = _v3A.setFromSpherical(this._sphericalEnd).normalize();
-        const rotation = _quaternionA.setFromUnitVectors(normal, _AXIS_Z).multiply(this._yAxisUpSpaceInverse);
+        const rotation = _quaternionA.setFromUnitVectors(normal, _AXIS_Z);
         const viewFromPolar = approxEquals(Math.abs(normal.y), 1);
         if (viewFromPolar) {
             rotation.multiply(_quaternionB.setFromAxisAngle(_AXIS_Y, theta));
         }
+        rotation.multiply(this._yAxisUpSpaceInverse);
         // make oriented bounding box
         const bb = _box3B.makeEmpty();
         // left bottom back corner
@@ -102337,16 +102420,20 @@ class CameraControls extends EventDispatcher {
         // right top front corner
         _v3B.copy(aabb.max).applyQuaternion(rotation);
         bb.expandByPoint(_v3B);
-        rotation.setFromUnitVectors(_AXIS_Z, normal);
         // add padding
         bb.min.x -= paddingLeft;
         bb.min.y -= paddingBottom;
         bb.max.x += paddingRight;
         bb.max.y += paddingTop;
+        rotation.setFromUnitVectors(_AXIS_Z, normal);
+        if (viewFromPolar) {
+            rotation.premultiply(_quaternionB.invert());
+        }
+        rotation.premultiply(this._yAxisUpSpace);
         const bbSize = bb.getSize(_v3A);
         const center = bb.getCenter(_v3B).applyQuaternion(rotation);
         if (isPerspectiveCamera(this._camera)) {
-            const distance = this.getDistanceToFitBox(bbSize.x, bbSize.y, bbSize.z);
+            const distance = this.getDistanceToFitBox(bbSize.x, bbSize.y, bbSize.z, cover);
             promises.push(this.moveTo(center.x, center.y, center.z, enableTransition));
             promises.push(this.dollyTo(distance, enableTransition));
             promises.push(this.setFocalOffset(0, 0, 0, enableTransition));
@@ -102355,7 +102442,7 @@ class CameraControls extends EventDispatcher {
             const camera = this._camera;
             const width = camera.right - camera.left;
             const height = camera.top - camera.bottom;
-            const zoom = Math.min(width / bbSize.x, height / bbSize.y);
+            const zoom = cover ? Math.max(width / bbSize.x, height / bbSize.y) : Math.min(width / bbSize.x, height / bbSize.y);
             promises.push(this.moveTo(center.x, center.y, center.z, enableTransition));
             promises.push(this.zoomTo(zoom, enableTransition));
             promises.push(this.setFocalOffset(0, 0, 0, enableTransition));
@@ -102577,13 +102664,13 @@ class CameraControls extends EventDispatcher {
      * @returns distance
      * @category Methods
      */
-    getDistanceToFitBox(width, height, depth) {
+    getDistanceToFitBox(width, height, depth, cover = false) {
         if (notSupportedInOrthographicCamera(this._camera, 'getDistanceToFitBox'))
             return this._spherical.radius;
         const boundingRectAspect = width / height;
         const fov = this._camera.getEffectiveFOV() * THREE.MathUtils.DEG2RAD;
         const aspect = this._camera.aspect;
-        const heightToFit = boundingRectAspect < aspect ? height : width / aspect;
+        const heightToFit = (cover ? boundingRectAspect > aspect : boundingRectAspect < aspect) ? height : width / aspect;
         return heightToFit * 0.5 / Math.tan(fov * 0.5) + depth * 0.5;
     }
     /**
@@ -102723,6 +102810,8 @@ class CameraControls extends EventDispatcher {
                     .add(planeY.multiplyScalar(this._dollyControlCoord.y * worldToScreen));
                 this._targetEnd.lerp(cursor, lerpRatio);
                 this._target.copy(this._targetEnd);
+                // target position may be moved beyond boundary.
+                this._boundary.clampPoint(this._targetEnd, this._targetEnd);
             }
             else if (isOrthographicCamera(this._camera)) {
                 const camera = this._camera;
@@ -102733,6 +102822,8 @@ class CameraControls extends EventDispatcher {
                 const cursor = _v3C.copy(worldPosition).add(quaternion.multiplyScalar(distance));
                 this._targetEnd.lerp(cursor, 1 - camera.zoom / this._dollyControlAmount);
                 this._target.copy(this._targetEnd);
+                // target position may be moved beyond boundary.
+                this._boundary.clampPoint(this._targetEnd, this._targetEnd);
             }
             this._dollyControlAmount = 0;
         }
@@ -105922,7 +106013,7 @@ class CustomOutlinePass extends Pass {
     constructor(resolution, scene, camera) {
         super();
         this.renderScene = scene;
-        this.renderCamera = camera;
+        this.camera = camera;
         this.resolution = new Vector2(resolution.x, resolution.y);
         // @ts-ignore
         this.fsQuad = new FullScreenQuad(null);
@@ -105960,7 +106051,7 @@ class CustomOutlinePass extends Pass {
         renderer.setRenderTarget(this.normalTarget);
         const overrideMaterialValue = this.renderScene.overrideMaterial;
         this.renderScene.overrideMaterial = this.normalOverrideMaterial;
-        renderer.render(this.renderScene, this.renderCamera);
+        renderer.render(this.renderScene, this.camera);
         this.renderScene.overrideMaterial = overrideMaterialValue;
         // @ts-ignore
         this.fsQuad.material.uniforms.depthBuffer.value = readBuffer.depthTexture;
@@ -106112,8 +106203,8 @@ class CustomOutlinePass extends Pass {
                 outlineColor: { value: new Color(0xffffff) },
                 // 4 scalar values packed in one uniform: depth multiplier, depth bias, and same for normals.
                 multiplierParameters: { value: new Vector4(1, 1, 1, 1) },
-                cameraNear: { value: this.renderCamera.near },
-                cameraFar: { value: this.renderCamera.far },
+                cameraNear: { value: this.camera.near },
+                cameraFar: { value: this.camera.far },
                 screenSize: {
                     value: new Vector4(this.resolution.x, this.resolution.y, 1 / this.resolution.x, 1 / this.resolution.y)
                 }
@@ -106136,8 +106227,16 @@ class Postproduction {
         this.isUserControllingCamera = false;
         this.isControlSleeping = true;
         this.lastWheelUsed = 0;
+        this.lastResized = 0;
+        this.resizeDelay = 500;
         this.isActive = false;
         this.isVisible = false;
+        this.white = new Color(255, 255, 255);
+        this.tempMaterial = new MeshLambertMaterial({
+            colorWrite: false,
+            opacity: 0,
+            transparent: true
+        });
         this.outlineParams = {
             mode: { Mode: 0 },
             FXAA: true,
@@ -106149,6 +106248,15 @@ class Postproduction {
         };
         this.onControlStart = () => (this.isUserControllingCamera = true);
         this.onWake = () => (this.isControlSleeping = false);
+        this.onResize = () => {
+            this.lastResized = performance.now();
+            this.visible = false;
+            setTimeout(() => {
+                if (performance.now() - this.lastResized >= this.resizeDelay) {
+                    this.visible = true;
+                }
+            }, this.resizeDelay);
+        };
         this.onControl = () => {
             this.visible = false;
         };
@@ -106172,6 +106280,13 @@ class Postproduction {
                     this.visible = true;
                 }
             }, 200);
+        };
+        this.onChangeProjection = (camera) => {
+            this.composer.passes.forEach((pass) => {
+                // @ts-ignore
+                pass.camera = camera;
+            });
+            this.update();
         };
         this.renderTarget = this.newRenderTarget();
         this.composer = new EffectComposer(renderer, this.renderTarget);
@@ -106213,6 +106328,7 @@ class Postproduction {
     dispose() {
         var _a, _b;
         this.active = false;
+        window.removeEventListener('resize', this.onResize);
         this.renderTarget.dispose();
         this.renderTarget = null;
         (_a = this.depthTexture) === null || _a === void 0 ? void 0 : _a.dispose();
@@ -106230,15 +106346,33 @@ class Postproduction {
         this.renderer = null;
         this.saoPass = null;
         this.outlineUniforms = null;
+        this.scene = null;
     }
     setSize(width, height) {
         this.composer.setSize(width, height);
     }
     update() {
+        var _a, _b, _c;
         if (!this.initialized || !this.isActive)
             return;
         this.hideExcludedItems();
+        this.context.getScene().traverse((object) => {
+            // @ts-ignore
+            object.userData.prevMaterial = object.material;
+            // @ts-ignore
+            object.material = this.tempMaterial;
+        });
+        const background = (_a = this.scene) === null || _a === void 0 ? void 0 : _a.background;
+        if (((_b = this.scene) === null || _b === void 0 ? void 0 : _b.background) && background)
+            this.scene.background = this.white;
         this.composer.render();
+        if (((_c = this.scene) === null || _c === void 0 ? void 0 : _c.background) && background)
+            this.scene.background = background;
+        this.context.getScene().traverse((object) => {
+            // @ts-ignore
+            object.material = object.userData.prevMaterial;
+            delete object.userData.prevMaterial;
+        });
         this.htmlOverlay.src = this.renderer.domElement.toDataURL();
         this.showExcludedItems();
     }
@@ -106260,6 +106394,7 @@ class Postproduction {
         const camera = this.context.getCamera();
         if (!scene || !camera)
             return;
+        this.scene = scene;
         this.renderer.clippingPlanes = this.context.getClippingPlanes();
         this.setupEvents();
         this.addBasePass(scene, camera);
@@ -106278,13 +106413,14 @@ class Postproduction {
         controls.addEventListener('controlend', this.onControlEnd);
         domElement.addEventListener('wheel', this.onWheel);
         controls.addEventListener('sleep', this.onSleep);
+        window.addEventListener('resize', this.onResize);
+        this.context.ifcCamera.onChangeProjection.on(this.onChangeProjection);
     }
     setupHtmlOverlay() {
         this.context.getContainerElement().appendChild(this.htmlOverlay);
         // @ts-ignore
-        this.htmlOverlay.style.mixBlendMode = 'darken';
+        this.htmlOverlay.style.mixBlendMode = 'multiply';
         this.htmlOverlay.style.position = 'absolute';
-        this.htmlOverlay.style.width = '100%';
         this.htmlOverlay.style.height = '100%';
         this.htmlOverlay.style.userSelect = 'none';
         this.htmlOverlay.style.pointerEvents = 'none';
@@ -106292,9 +106428,9 @@ class Postproduction {
         this.htmlOverlay.style.left = '0';
     }
     addAntialiasPass() {
-        const effectFXAA = new ShaderPass(FXAAShader);
-        effectFXAA.uniforms.resolution.value.set(1 / window.innerWidth, 1 / window.innerHeight);
-        this.composer.addPass(effectFXAA);
+        this.fxaaPass = new ShaderPass(FXAAShader);
+        this.fxaaPass.uniforms.resolution.value.set((1 / this.renderer.domElement.offsetWidth) * this.renderer.getPixelRatio(), (1 / this.renderer.domElement.offsetHeight) * this.renderer.getPixelRatio());
+        this.composer.addPass(this.fxaaPass);
     }
     addOutlinePass(scene, camera) {
         this.customOutline = new CustomOutlinePass(new Vector2(window.innerWidth, window.innerHeight), scene, camera);
@@ -106320,8 +106456,8 @@ class Postproduction {
         this.saoPass.params.saoKernelRadius = 30;
     }
     addBasePass(scene, camera) {
-        const pass = new RenderPass(scene, camera);
-        this.composer.addPass(pass);
+        this.basePass = new RenderPass(scene, camera);
+        this.composer.addPass(this.basePass);
     }
     newRenderTarget() {
         this.depthTexture = new DepthTexture(window.innerWidth, window.innerHeight);
@@ -106339,7 +106475,7 @@ class IfcRenderer extends IfcComponent {
         this.blocked = false;
         this.context = context;
         this.container = context.options.container;
-        this.renderer = new WebGLRenderer();
+        this.renderer = new WebGLRenderer({ alpha: true });
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.setupRenderers();
         this.postProduction = new Postproduction(this.context, this.renderer);
@@ -106463,7 +106599,7 @@ function _assertThisInitialized(self) { if (self === void 0) { throw new Referen
 function _inheritsLoose(subClass, superClass) { subClass.prototype = Object.create(superClass.prototype); subClass.prototype.constructor = subClass; subClass.__proto__ = superClass; }
 
 /*!
- * GSAP 3.10.4
+ * GSAP 3.11.0
  * https://greensock.com
  *
  * @license Copyright 2008-2022, GreenSock. All rights reserved.
@@ -106487,6 +106623,8 @@ var _config = {
   delay: 0
 },
     _suppressOverwrites,
+    _reverting$1,
+    _context,
     _bigNum$1 = 1e8,
     _tinyNum = 1 / _bigNum$1,
     _2PI = Math.PI * 2,
@@ -106554,6 +106692,13 @@ _unitExp = /^[+\-=e\s\d]*\d+[.\d]*([a-z]*|%)\s*$/i,
 },
     _emptyFunc = function _emptyFunc() {
   return 0;
+},
+    _startAtRevertConfig = {
+  suppressEvents: true,
+  isStart: true
+},
+    _revertConfig = {
+  suppressEvents: true
 },
     _reservedProps = {},
     _lazyTweens = [],
@@ -106635,7 +106780,7 @@ _parseRelative = function _parseRelative(start, value) {
 },
     _lazySafeRender = function _lazySafeRender(animation, time, suppressEvents, force) {
   _lazyTweens.length && _lazyRender();
-  animation.render(time, suppressEvents, force);
+  animation.render(time, suppressEvents, force || _reverting$1);
   _lazyTweens.length && _lazyRender(); //in case rendering caused any tweens to lazy-init, we should render them because typically when someone calls seek() or time() or progress(), they expect an immediate render.
 },
     _numericIfPossible = function _numericIfPossible(value) {
@@ -106797,6 +106942,9 @@ _parseRelative = function _parseRelative(start, value) {
 
   return animation;
 },
+    _rewindStartAt = function _rewindStartAt(tween, totalTime, suppressEvents, force) {
+  return tween._startAt && (_reverting$1 ? tween._startAt.revert(_revertConfig) : tween.vars.immediateRender && !tween.vars.autoRevert || tween._startAt.render(totalTime, true, force));
+},
     _hasNoPausedAncestors = function _hasNoPausedAncestors(animation) {
   return !animation || animation._ts && _hasNoPausedAncestors(animation.parent);
 },
@@ -106876,6 +107024,8 @@ _postAddChecks = function _postAddChecks(timeline, child) {
 
   _isFromOrFromStart(child) || (timeline._recent = child);
   skipChecks || _postAddChecks(timeline, child);
+  timeline._ts < 0 && _alignPlayhead(timeline, timeline._tTime); // if the timeline is reversed and the new child makes it longer, we may need to adjust the parent's _start (push it back)
+
   return timeline;
 },
     _scrollTrigger = function _scrollTrigger(animation, trigger) {
@@ -106927,7 +107077,7 @@ _isFromOrFromStart = function _isFromOrFromStart(_ref2) {
     }
   }
 
-  if (ratio !== prevRatio || force || tween._zTime === _tinyNum || !totalTime && tween._zTime) {
+  if (ratio !== prevRatio || _reverting$1 || force || tween._zTime === _tinyNum || !totalTime && tween._zTime) {
     if (!tween._initted && _attemptInitTween(tween, totalTime, force, suppressEvents)) {
       // if we render the very beginning (time == 0) of a fromTo(), we must force the render (normal tweens wouldn't need to render at a time of 0 when the prevTime was also 0). This is also mandatory to make sure overwriting kicks in immediately.
       return;
@@ -106949,7 +107099,7 @@ _isFromOrFromStart = function _isFromOrFromStart(_ref2) {
       pt = pt._next;
     }
 
-    tween._startAt && totalTime < 0 && tween._startAt.render(totalTime, true, true);
+    totalTime < 0 && _rewindStartAt(tween, totalTime, suppressEvents, true);
     tween._onUpdate && !suppressEvents && _callback(tween, "onUpdate");
     tTime && tween._repeat && !suppressEvents && tween.parent && _callback(tween, "onRepeat");
 
@@ -107104,7 +107254,7 @@ clamp = function clamp(min, max, value) {
 },
     //takes any value and returns an array. If it's a string (and leaveStrings isn't true), it'll use document.querySelectorAll() and convert that to an array. It'll also accept iterables like jQuery objects.
 toArray = function toArray(value, scope, leaveStrings) {
-  return _isString(value) && !leaveStrings && (_coreInitted || !_wake()) ? _slice.call((scope || _doc$1).querySelectorAll(value), 0) : _isArray(value) ? _flatten(value, leaveStrings) : _isArrayLike(value) ? _slice.call(value, 0) : value ? [value] : [];
+  return _context && !scope && _context.selector ? _context.selector(value) : _isString(value) && !leaveStrings && (_coreInitted || !_wake()) ? _slice.call((scope || _doc$1).querySelectorAll(value), 0) : _isArray(value) ? _flatten(value, leaveStrings) : _isArrayLike(value) ? _slice.call(value, 0) : value ? [value] : [];
 },
     selector = function selector(value) {
   value = toArray(value)[0] || _warn("Invalid scope") || {};
@@ -107207,7 +107357,8 @@ distribute = function distribute(v) {
   var p = Math.pow(10, ((v + "").split(".")[1] || "").length); //to avoid floating point math errors (like 24 * 0.1 == 2.4000000000000004), we chop off at a specific number of decimal places (much faster than toFixed())
 
   return function (raw) {
-    var n = Math.round(parseFloat(raw) / v) * v * p;
+    var n = _roundPrecise(Math.round(parseFloat(raw) / v) * v * p);
+
     return (n - n % 1) / p + (_isNumber(raw) ? 0 : getUnit(raw)); // n - n % 1 replaces Math.floor() in order to handle negative values properly. For example, Math.floor(-150.00000000000003) is 151!
   };
 },
@@ -107411,8 +107562,11 @@ distribute = function distribute(v) {
     _callback = function _callback(animation, type, executeLazyFirst) {
   var v = animation.vars,
       callback = v[type],
+      prevContext = _context,
+      context = animation._ctx,
       params,
-      scope;
+      scope,
+      result;
 
   if (!callback) {
     return;
@@ -107422,7 +107576,10 @@ distribute = function distribute(v) {
   scope = v.callbackScope || animation;
   executeLazyFirst && _lazyTweens.length && _lazyRender(); //in case rendering caused any tweens to lazy-init, we should render them because typically when a timeline finishes, users expect things to have rendered fully. Imagine an onUpdate on a timeline that reports/checks tweened values.
 
-  return params ? callback.apply(scope, params) : callback.call(scope);
+  context && (_context = context);
+  result = params ? callback.apply(scope, params) : callback.call(scope);
+  _context = prevContext;
+  return result;
 },
     _interrupt = function _interrupt(animation) {
   _removeFromParent(animation);
@@ -108079,6 +108236,13 @@ var Animation = /*#__PURE__*/function () {
     _setDuration(this, +vars.duration, 1, 1);
 
     this.data = vars.data;
+
+    if (_context) {
+      this._ctx = _context;
+
+      _context.data.push(this);
+    }
+
     _tickerActive || _ticker.wake();
   }
 
@@ -108248,6 +108412,20 @@ var Animation = /*#__PURE__*/function () {
     return !parent ? this._tTime : wrapRepeats && (!this._ts || this._repeat && this._time && this.totalProgress() < 1) ? this._tTime % (this._dur + this._rDelay) : !this._ts ? this._tTime : _parentToChildTotalTime(parent.rawTime(wrapRepeats), this);
   };
 
+  _proto.revert = function revert(config) {
+    if (config === void 0) {
+      config = _revertConfig;
+    }
+
+    var prevIsReverting = _reverting$1;
+    _reverting$1 = config;
+    this.timeline && this.timeline.revert(config);
+    this.totalTime(-0.01, config.suppressEvents);
+    this.data !== "nested" && _removeFromParent(this);
+    _reverting$1 = prevIsReverting;
+    return this;
+  };
+
   _proto.globalTime = function globalTime(rawTime) {
     var animation = this,
         time = arguments.length ? rawTime : animation.rawTime();
@@ -108257,7 +108435,7 @@ var Animation = /*#__PURE__*/function () {
       animation = animation._dp;
     }
 
-    return time;
+    return !this.parent && this.vars.immediateRender ? -1 : time; // the _startAt tweens for .fromTo() and .from() that have immediateRender should always be FIRST in the timeline (important for Recording.revert())
   };
 
   _proto.repeat = function repeat(value) {
@@ -108667,6 +108845,8 @@ var Timeline = /*#__PURE__*/function (_Animation) {
           child = next;
         }
       } else {
+        force = force || _reverting$1; // if reverting, we should always force renders. If, for example, a .fromTo() tween with a stagger (which creates an internal timeline) gets reverted BEFORE some of its child tweens render for the first time, it may not properly trigger them to revert.
+
         child = this._last;
         var adjustedTime = totalTime < 0 ? totalTime : time; //when the playhead goes backward beyond the start of this timeline, we must pass that information down to the child animations so that zero-duration tweens know whether to render their starting or ending values.
 
@@ -109188,7 +109368,7 @@ var _addComplexStringPropTween = function _addComplexStringPropTween(target, pro
 
   return pt;
 },
-    _addPropTween = function _addPropTween(target, prop, start, end, index, targets, modifier, stringFilter, funcParam) {
+    _addPropTween = function _addPropTween(target, prop, start, end, index, targets, modifier, stringFilter, funcParam, optional) {
   _isFunction(end) && (end = end(index || 0, target, targets));
   var currentValue = target[prop],
       parsedStart = start !== "get" ? start : !_isFunction(currentValue) ? currentValue : funcParam ? target[prop.indexOf("set") || !_isFunction(target["get" + prop.substr(3)]) ? prop : "get" + prop.substr(3)](funcParam) : target[prop](),
@@ -109210,7 +109390,7 @@ var _addComplexStringPropTween = function _addComplexStringPropTween(target, pro
     }
   }
 
-  if (parsedStart !== end || _forceAllPropTweens) {
+  if (!optional || parsedStart !== end || _forceAllPropTweens) {
     if (!isNaN(parsedStart * end) && end !== "") {
       // fun fact: any number multiplied by "" is evaluated as the number 0!
       pt = new PropTween(this._pt, target, prop, +parsedStart || 0, end - (parsedStart || 0), typeof currentValue === "boolean" ? _renderBoolean : _renderPlain, 0, setter);
@@ -109316,7 +109496,8 @@ _forceAllPropTweens,
     cleanVars = _copyExcluding(vars, _reservedProps);
 
     if (prevStartAt) {
-      _removeFromParent(prevStartAt.render(-1, true));
+      prevStartAt.revert(runBackwards && dur ? _revertConfig : _startAtRevertConfig); // if it's a "startAt" (not "from()" or runBackwards: true), we only need to do a shallow revert (keep transforms cached in CSSPlugin)
+      // don't just _removeFromParent(prevStartAt.render(-1, true)) because that'll leave inline styles. We're creating a new _startAt for "startAt" tweens that re-capture things to ensure that if the pre-tween values changed since the tween was created, they're recorded.
 
       prevStartAt._lazy = 0;
     }
@@ -109337,29 +109518,17 @@ _forceAllPropTweens,
       }, startAt))); //copy the properties/values into a new object to avoid collisions, like var to = {x:0}, from = {x:500}; timeline.fromTo(e, from, to).fromTo(e, to, from);
 
 
-      time < 0 && !immediateRender && !autoRevert && tween._startAt.render(-1, true); // rare edge case, like if a render is forced in the negative direction of a non-initted tween.
+      time < 0 && (_reverting$1 || !immediateRender && !autoRevert) && tween._startAt.revert(_revertConfig); // rare edge case, like if a render is forced in the negative direction of a non-initted tween.
 
       if (immediateRender) {
-        time > 0 && !autoRevert && (tween._startAt = 0); //tweens that render immediately (like most from() and fromTo() tweens) shouldn't revert when their parent timeline's playhead goes backward past the startTime because the initial render could have happened anytime and it shouldn't be directly correlated to this tween's startTime. Imagine setting up a complex animation where the beginning states of various objects are rendered immediately but the tween doesn't happen for quite some time - if we revert to the starting values as soon as the playhead goes backward past the tween's startTime, it will throw things off visually. Reversion should only happen in Timeline instances where immediateRender was false or when autoRevert is explicitly set to true.
-
         if (dur && time <= 0) {
           time && (tween._zTime = time);
           return; //we skip initialization here so that overwriting doesn't occur until the tween actually begins. Otherwise, if you create several immediateRender:true tweens of the same target/properties to drop into a Timeline, the last one created would overwrite the first ones because they didn't get placed into the timeline yet before the first render occurs and kicks in overwriting.
-        } // if (time > 0) {
-        // 	autoRevert || (tween._startAt = 0); //tweens that render immediately (like most from() and fromTo() tweens) shouldn't revert when their parent timeline's playhead goes backward past the startTime because the initial render could have happened anytime and it shouldn't be directly correlated to this tween's startTime. Imagine setting up a complex animation where the beginning states of various objects are rendered immediately but the tween doesn't happen for quite some time - if we revert to the starting values as soon as the playhead goes backward past the tween's startTime, it will throw things off visually. Reversion should only happen in Timeline instances where immediateRender was false or when autoRevert is explicitly set to true.
-        // } else if (dur && !(time < 0 && prevStartAt)) {
-        // 	time && (tween._zTime = time);
-        // 	return; //we skip initialization here so that overwriting doesn't occur until the tween actually begins. Otherwise, if you create several immediateRender:true tweens of the same target/properties to drop into a Timeline, the last one created would overwrite the first ones because they didn't get placed into the timeline yet before the first render occurs and kicks in overwriting.
-        // }
-
-      } else if (autoRevert === false) {
-        tween._startAt = 0;
+        }
       }
     } else if (runBackwards && dur) {
       //from() tweens must be handled uniquely: their beginning values must be rendered but we don't want overwriting to occur yet (when time is still 0). Wait until the tween actually begins before doing all the routines like overwriting. At that time, we should render at the END of the tween to ensure that things initialize correctly (remember, from() tweens go backwards)
-      if (prevStartAt) {
-        !autoRevert && (tween._startAt = 0);
-      } else {
+      if (!prevStartAt) {
         time && (immediateRender = false); //in rare cases (like if a from() tween runs and then is invalidate()-ed), immediateRender could be true but the initial forced-render gets skipped, so there's no need to force the render in this context when the _time is greater than 0
 
         p = _setDefaults({
@@ -109377,8 +109546,7 @@ _forceAllPropTweens,
 
         _removeFromParent(tween._startAt = Tween.set(targets, p));
 
-        time < 0 && tween._startAt.render(-1, true); // rare edge case, like if a render is forced in the negative direction of a non-initted from() tween.
-
+        time < 0 && (_reverting$1 ? tween._startAt.revert(_revertConfig) : tween._startAt.render(-1, true));
         tween._zTime = time;
 
         if (!immediateRender) {
@@ -109448,6 +109616,7 @@ _forceAllPropTweens,
     _updatePropTweens = function _updatePropTweens(tween, property, value, start, startIsRelative, ratio, time) {
   var ptCache = (tween._pt && tween._ptCache || (tween._ptCache = {}))[property],
       pt,
+      rootPT,
       lookup,
       i;
 
@@ -109463,7 +109632,8 @@ _forceAllPropTweens,
         // it's a plugin, so find the nested PropTween
         pt = pt.d._pt;
 
-        while (pt && pt.p !== property) {
+        while (pt && pt.p !== property && pt.fp !== property) {
+          // "fp" is functionParam for things like setting CSS variables which require .setProperty("--var-name", value)
           pt = pt._next;
         }
       }
@@ -109488,12 +109658,14 @@ _forceAllPropTweens,
   i = ptCache.length;
 
   while (i--) {
-    pt = ptCache[i];
+    rootPT = ptCache[i];
+    pt = rootPT._pt || rootPT; // complex values may have nested PropTweens. We only accommodate the FIRST value.
+
     pt.s = (start || start === 0) && !startIsRelative ? start : pt.s + (start || 0) + ratio * pt.c;
     pt.c = value - pt.s;
-    pt.e && (pt.e = _round(value) + getUnit(pt.e)); // mainly for CSSPlugin (end value)
+    rootPT.e && (rootPT.e = _round(value) + getUnit(rootPT.e)); // mainly for CSSPlugin (end value)
 
-    pt.b && (pt.b = pt.s + getUnit(pt.b)); // (beginning value)
+    rootPT.b && (rootPT.b = pt.s + getUnit(rootPT.b)); // (beginning value)
   }
 },
     _addAliasesToVars = function _addAliasesToVars(targets, vars) {
@@ -109665,6 +109837,7 @@ var Tween = /*#__PURE__*/function (_Animation2) {
           keyframes.forEach(function (frame) {
             return tl.to(parsedTargets, frame, ">");
           });
+          tl.duration(); // to ensure tl._dur is cached because we tap into it for performance purposes in the render() method.
         } else {
           copy = {};
 
@@ -109731,7 +109904,8 @@ var Tween = /*#__PURE__*/function (_Animation2) {
     var prevTime = this._time,
         tDur = this._tDur,
         dur = this._dur,
-        tTime = totalTime > tDur - _tinyNum && totalTime >= 0 ? tDur : totalTime < _tinyNum ? 0 : totalTime,
+        isNegative = totalTime < 0,
+        tTime = totalTime > tDur - _tinyNum && !isNegative ? tDur : totalTime < _tinyNum ? 0 : totalTime,
         time,
         pt,
         iteration,
@@ -109744,7 +109918,7 @@ var Tween = /*#__PURE__*/function (_Animation2) {
 
     if (!dur) {
       _renderZeroDurationTween(this, totalTime, suppressEvents, force);
-    } else if (tTime !== this._tTime || !totalTime || force || !this._initted && this._tTime || this._startAt && this._zTime < 0 !== totalTime < 0) {
+    } else if (tTime !== this._tTime || !totalTime || force || !this._initted && this._tTime || this._startAt && this._zTime < 0 !== isNegative) {
       //this senses if we're crossing over the start time, in which case we must record _zTime and force the render, but we do it in this lengthy conditional way for performance reasons (usually we can skip the calculations): this._initted && (this._zTime < 0) !== (totalTime < 0)
       time = tTime;
       timeline = this.timeline;
@@ -109753,7 +109927,7 @@ var Tween = /*#__PURE__*/function (_Animation2) {
         //adjust the time for repeats and yoyos
         cycleDuration = dur + this._rDelay;
 
-        if (this._repeat < -1 && totalTime < 0) {
+        if (this._repeat < -1 && isNegative) {
           return this.totalTime(cycleDuration * 100 + totalTime, suppressEvents, force);
         }
 
@@ -109801,7 +109975,7 @@ var Tween = /*#__PURE__*/function (_Animation2) {
       }
 
       if (!this._initted) {
-        if (_attemptInitTween(this, totalTime < 0 ? totalTime : time, force, suppressEvents)) {
+        if (_attemptInitTween(this, isNegative ? totalTime : time, force, suppressEvents)) {
           this._tTime = 0; // in constructor if immediateRender is true, we set _tTime to -_tinyNum to have the playhead cross the starting point but we can't leave _tTime as a negative number.
 
           return this;
@@ -109852,7 +110026,7 @@ var Tween = /*#__PURE__*/function (_Animation2) {
       timeline && timeline.render(totalTime < 0 ? totalTime : !time && isYoyo ? -_tinyNum : timeline._dur * timeline._ease(time / this._dur), suppressEvents, force) || this._startAt && (this._zTime = totalTime);
 
       if (this._onUpdate && !suppressEvents) {
-        totalTime < 0 && this._startAt && this._startAt.render(totalTime, true, force); //note: for performance reasons, we tuck this conditional logic inside less traveled areas (most tweens don't have an onUpdate). We'd just have it at the end before the onComplete, but the values should be updated before any onUpdate is called, so we ALSO put it here and then if it's not called, we do so later near the onComplete.
+        isNegative && _rewindStartAt(this, totalTime, suppressEvents, force); //note: for performance reasons, we tuck this conditional logic inside less traveled areas (most tweens don't have an onUpdate). We'd just have it at the end before the onComplete, but the values should be updated before any onUpdate is called, so we ALSO put it here and then if it's not called, we do so later near the onComplete.
 
         _callback(this, "onUpdate");
       }
@@ -109860,10 +110034,10 @@ var Tween = /*#__PURE__*/function (_Animation2) {
       this._repeat && iteration !== prevIteration && this.vars.onRepeat && !suppressEvents && this.parent && _callback(this, "onRepeat");
 
       if ((tTime === this._tDur || !tTime) && this._tTime === tTime) {
-        totalTime < 0 && this._startAt && !this._onUpdate && this._startAt.render(totalTime, true, true);
+        isNegative && !this._onUpdate && _rewindStartAt(this, totalTime, true, true);
         (totalTime || !dur) && (tTime === this._tDur && this._ts > 0 || !tTime && this._ts < 0) && _removeFromParent(this, 1); // don't remove if we're rendering at exactly a time of 0, as there could be autoRevert values that should get set on the next tick (if the playhead goes backward beyond the startTime, negative totalTime). Don't remove if the timeline is reversed and the playhead isn't at 0, otherwise tl.progress(1).reverse() won't work. Only remove if the playhead is at the end and timeScale is positive, or if the playhead is at 0 and the timeScale is negative.
 
-        if (!suppressEvents && !(totalTime < 0 && !prevTime) && (tTime || prevTime)) {
+        if (!suppressEvents && !(isNegative && !prevTime) && (tTime || prevTime)) {
           // if prevTime and tTime are zero, we shouldn't fire the onReverseComplete. This could happen if you gsap.to(... {paused:true}).play();
           _callback(this, tTime === tDur ? "onComplete" : "onReverseComplete", true);
 
@@ -110238,11 +110412,231 @@ _globalTimeline = new Timeline({
   smoothChildTiming: true
 });
 _config.stringFilter = _colorStringFilter;
+
+var _media = [],
+    _listeners = {},
+    _emptyArray = [],
+    _lastMediaTime = 0,
+    _dispatch = function _dispatch(type) {
+  return (_listeners[type] || _emptyArray).map(function (f) {
+    return f();
+  });
+},
+    _onMediaChange = function _onMediaChange() {
+  var time = Date.now(),
+      matches = [];
+
+  if (time - _lastMediaTime > 2) {
+    _dispatch("matchMediaInit");
+
+    _media.forEach(function (c) {
+      var queries = c.queries,
+          conditions = c.conditions,
+          match,
+          p,
+          anyMatch,
+          toggled;
+
+      for (p in queries) {
+        match = _win$1.matchMedia(queries[p]).matches; // Firefox doesn't update the "matches" property of the MediaQueryList object correctly - it only does so as it calls its change handler - so we must re-create a media query here to ensure it's accurate.
+
+        match && (anyMatch = 1);
+
+        if (match !== conditions[p]) {
+          conditions[p] = match;
+          toggled = 1;
+        }
+      }
+
+      if (toggled) {
+        c.revert();
+        anyMatch && matches.push(c);
+      }
+    });
+
+    _dispatch("matchMediaRevert");
+
+    matches.forEach(function (c) {
+      return c.onMatch(c);
+    });
+    _lastMediaTime = time;
+
+    _dispatch("matchMedia");
+  }
+};
+
+var Context = /*#__PURE__*/function () {
+  function Context(func, scope) {
+    this.selector = scope && selector(scope);
+    this.data = [];
+    this._r = []; // returned/cleanup functions
+
+    this.isReverted = false;
+    func && this.add(func);
+  }
+
+  var _proto5 = Context.prototype;
+
+  _proto5.add = function add(name, func, scope) {
+    if (_isFunction(name)) {
+      scope = func;
+      func = name;
+      name = _isFunction;
+    }
+
+    var self = this,
+        f = function f() {
+      var prev = _context,
+          prevSelector = self.selector,
+          result;
+      prev && prev.data.push(self);
+      scope && (self.selector = selector(scope));
+      _context = self;
+      result = func.apply(self, arguments);
+      _isFunction(result) && self._r.push(result);
+      _context = prev;
+      self.selector = prevSelector;
+      self.isReverted = false;
+      return result;
+    };
+
+    self.last = f;
+    return name === _isFunction ? f(self) : name ? self[name] = f : f;
+  };
+
+  _proto5.ignore = function ignore(func) {
+    var prev = _context;
+    _context = null;
+    func(this);
+    _context = prev;
+  };
+
+  _proto5.getTweens = function getTweens() {
+    var a = [];
+    this.data.forEach(function (e) {
+      return e instanceof Context ? a.push.apply(a, e.getTweens()) : e instanceof Tween && e._targets[0] !== e.vars.onComplete && a.push(e);
+    }); // don't include delayedCalls
+
+    return a;
+  };
+
+  _proto5.clear = function clear() {
+    this._r.length = this.data.length = 0;
+  };
+
+  _proto5.kill = function kill(revert, matchMedia) {
+    var _this4 = this;
+
+    if (revert) {
+      // save as an object so that we can cache the globalTime for each tween to optimize performance during the sort
+      this.getTweens().map(function (t) {
+        return {
+          g: t.globalTime(0),
+          t: t
+        };
+      }).sort(function (a, b) {
+        return b.g - a.g || -1;
+      }).forEach(function (o) {
+        return o.t.revert(revert);
+      }); // note: all of the _startAt tweens should be reverted in reverse order that thy were created, and they'll all have the same globalTime (-1) so the " || -1" in the sort keeps the order properly.
+
+      this.data.forEach(function (e) {
+        return !(e instanceof Animation) && e.revert && e.revert(revert);
+      });
+
+      this._r.forEach(function (f) {
+        return f(revert, _this4);
+      });
+
+      this.isReverted = true;
+    } else {
+      this.data.forEach(function (e) {
+        return e.kill && e.kill();
+      });
+    }
+
+    this.clear();
+
+    if (matchMedia) {
+      var i = _media.indexOf(this);
+
+      !!~i && _media.splice(i, 1);
+    }
+  };
+
+  _proto5.revert = function revert(config) {
+    this.kill(config || {});
+  };
+
+  return Context;
+}();
+
+var MatchMedia = /*#__PURE__*/function () {
+  function MatchMedia(scope) {
+    this.contexts = [];
+    this.scope = scope;
+  }
+
+  var _proto6 = MatchMedia.prototype;
+
+  _proto6.add = function add(conditions, func, scope) {
+    _isObject(conditions) || (conditions = {
+      matches: conditions
+    });
+    var context = new Context(0, scope || this.scope),
+        cond = context.conditions = {},
+        mq,
+        p,
+        active;
+    this.contexts.push(context);
+    func = context.add("onMatch", func);
+    context.queries = conditions;
+
+    for (p in conditions) {
+      if (p === "all") {
+        active = 1;
+      } else {
+        mq = _win$1.matchMedia(conditions[p]);
+
+        if (mq) {
+          _media.indexOf(context) < 0 && _media.push(context);
+          (cond[p] = mq.matches) && (active = 1);
+          mq.addListener ? mq.addListener(_onMediaChange) : mq.addEventListener("change", _onMediaChange);
+        }
+      }
+    }
+
+    active && func(context);
+    return this;
+  } // refresh() {
+  // 	let time = _lastMediaTime,
+  // 		media = _media;
+  // 	_lastMediaTime = -1;
+  // 	_media = this.contexts;
+  // 	_onMediaChange();
+  // 	_lastMediaTime = time;
+  // 	_media = media;
+  // }
+  ;
+
+  _proto6.revert = function revert(config) {
+    this.kill(config || {});
+  };
+
+  _proto6.kill = function kill(revert) {
+    this.contexts.forEach(function (c) {
+      return c.kill(revert, true);
+    });
+  };
+
+  return MatchMedia;
+}();
 /*
  * --------------------------------------------------------------------------------------
  * GSAP
  * --------------------------------------------------------------------------------------
  */
+
 
 var _gsap = {
   registerPlugin: function registerPlugin() {
@@ -110387,6 +110781,37 @@ var _gsap = {
 
     return tl;
   },
+  context: function context(func, scope) {
+    return func ? new Context(func, scope) : _context;
+  },
+  matchMedia: function matchMedia(scope) {
+    return new MatchMedia(scope);
+  },
+  matchMediaRefresh: function matchMediaRefresh() {
+    return _media.forEach(function (c) {
+      var cond = c.conditions,
+          found,
+          p;
+
+      for (p in cond) {
+        if (cond[p]) {
+          cond[p] = false;
+          found = 1;
+        }
+      }
+
+      found && c.revert();
+    }) || _onMediaChange();
+  },
+  addEventListener: function addEventListener(type, callback) {
+    var a = _listeners[type] || (_listeners[type] = []);
+    ~a.indexOf(callback) || a.push(callback);
+  },
+  removeEventListener: function removeEventListener(type, callback) {
+    var a = _listeners[type],
+        i = a && a.indexOf(callback);
+    i >= 0 && a.splice(i, 1);
+  },
   utils: {
     wrap: wrap,
     wrapYoyo: wrapYoyo,
@@ -110419,6 +110844,18 @@ var _gsap = {
     Animation: Animation,
     getCache: _getCache,
     _removeLinkedListItem: _removeLinkedListItem,
+    reverting: function reverting() {
+      return _reverting$1;
+    },
+    context: function context(toAdd) {
+      if (toAdd && _context) {
+        _context.data.push(toAdd);
+
+        toAdd._ctx = _context;
+      }
+
+      return _context;
+    },
     suppressOverwrites: function suppressOverwrites(value) {
       return _suppressOverwrites = value;
     }
@@ -110507,13 +110944,25 @@ var _getPluginPropTween = function _getPluginPropTween(plugin, prop) {
 var gsap = _gsap.registerPlugin({
   name: "attr",
   init: function init(target, vars, tween, index, targets) {
-    var p, pt;
+    var p, pt, v;
+    this.tween = tween;
 
     for (p in vars) {
-      pt = this.add(target, "setAttribute", (target.getAttribute(p) || 0) + "", vars[p], index, targets, 0, 0, p);
-      pt && (pt.op = p);
+      v = target.getAttribute(p) || "";
+      pt = this.add(target, "setAttribute", (v || 0) + "", vars[p], index, targets, 0, 0, p);
+      pt.op = p;
+      pt.b = v; // record the beginning value so we can revert()
 
       this._props.push(p);
+    }
+  },
+  render: function render(ratio, data) {
+    var pt = data._pt;
+
+    while (pt) {
+      _reverting$1 ? pt.set(pt.t, pt.p, pt.b, pt) : pt.r(ratio, pt.d); // if reverting, go back to the original (pt.b)
+
+      pt = pt._next;
     }
   }
 }, {
@@ -110522,12 +110971,12 @@ var gsap = _gsap.registerPlugin({
     var i = value.length;
 
     while (i--) {
-      this.add(target, i, target[i] || 0, value[i]);
+      this.add(target, i, target[i] || 0, value[i], 0, 0, 0, 0, 0, 1);
     }
   }
 }, _buildModifierPlugin("roundProps", _roundModifier), _buildModifierPlugin("modifiers"), _buildModifierPlugin("snap", snap)) || _gsap; //to prevent the core plugins from being dropped via aggressive tree shaking, we must include them in the variable declaration in this way.
 
-Tween.version = Timeline.version = gsap.version = "3.10.4";
+Tween.version = Timeline.version = gsap.version = "3.11.0";
 _coreReady = 1;
 _windowExists$1() && _wake();
 _easeMap.Power0;
@@ -110550,7 +110999,7 @@ _easeMap.Power0;
     _easeMap.Circ;
 
 /*!
- * CSSPlugin 3.10.4
+ * CSSPlugin 3.11.0
  * https://greensock.com
  *
  * Copyright 2008-2022, GreenSock. All rights reserved.
@@ -110565,6 +111014,7 @@ var _win,
     _pluginInitted,
     _tempDiv,
     _recentSetterPlugin,
+    _reverting,
     _windowExists = function _windowExists() {
   return typeof window !== "undefined";
 },
@@ -110625,6 +111075,80 @@ _renderRoundedCSSProp = function _renderRoundedCSSProp(ratio, data) {
 },
     _transformProp = "transform",
     _transformOriginProp = _transformProp + "Origin",
+    _saveStyle = function _saveStyle(property) {
+  var _this = this;
+
+  var target = this.target,
+      style = target.style;
+
+  if (property in _transformProps) {
+    this.tfm = this.tfm || {};
+
+    if (property !== "transform") {
+      property = _propertyAliases[property] || property;
+      ~property.indexOf(",") ? property.split(",").forEach(function (a) {
+        return _this.tfm[a] = _get(target, a);
+      }) : this.tfm[property] = target._gsap.x ? target._gsap[property] : _get(target, property); // note: scale would map to "scaleX,scaleY", thus we loop and apply them both.
+    }
+
+    target._gsap.svg && (this.svg = target.getAttribute(property) || "");
+
+    if (this.props.indexOf(_transformProp) >= 0) {
+      return;
+    }
+
+    property = _transformProp;
+  }
+
+  style && this.props.push(property, style[property]);
+},
+    _removeIndependentTransforms = function _removeIndependentTransforms(style) {
+  if (style.translate) {
+    style.removeProperty("translate");
+    style.removeProperty("scale");
+    style.removeProperty("rotate");
+  }
+},
+    _revertStyle = function _revertStyle() {
+  var props = this.props,
+      target = this.target,
+      style = target.style,
+      cache = target._gsap,
+      i,
+      p;
+
+  for (i = 0; i < props.length; i += 2) {
+    props[i + 1] ? style[props[i]] = props[i + 1] : style.removeProperty(props[i].replace(_capsExp, "-$1").toLowerCase());
+  }
+
+  if (this.tfm) {
+    cache.svg && target.setAttribute("transform", this.svg || "");
+
+    for (p in this.tfm) {
+      cache[p] = this.tfm[p];
+    }
+
+    i = _reverting();
+
+    if (i && !i.isStart && !style[_transformProp]) {
+      _removeIndependentTransforms(style);
+
+      cache.uncache = 1; // if it's a startAt that's being reverted in the _initTween() of the core, we don't need to uncache transforms. This is purely a performance optimization.
+    }
+  }
+},
+    _getStyleSaver = function _getStyleSaver(target, properties) {
+  var saver = {
+    target: target,
+    props: [],
+    revert: _revertStyle,
+    save: _saveStyle
+  };
+  properties && properties.split(",").forEach(function (p) {
+    return saver.save(p);
+  });
+  return saver;
+},
     _supports3D,
     _createElement = function _createElement(type, ns) {
   var e = _doc.createElementNS ? _doc.createElementNS((ns || "http://www.w3.org/1999/xhtml").replace(/^https/, "http"), type) : _doc.createElement(type); //some servers swap in https for http in the namespace which can break things, making "style" inaccessible.
@@ -110665,6 +111189,7 @@ _renderRoundedCSSProp = function _renderRoundedCSSProp(ratio, data) {
     _tempDiv.style.cssText = "border-width:0;line-height:0;position:absolute;padding:0"; //make sure to override certain properties that may contaminate measurements, in case the user has overreaching style sheets.
 
     _supports3D = !!_checkPropPrefix("perspective");
+    _reverting = gsap.core.reverting;
     _pluginInitted = 1;
   }
 },
@@ -110772,6 +111297,10 @@ _removeProperty = function _removeProperty(target, property) {
   rad: 1,
   turn: 1
 },
+    _nonStandardLayouts = {
+  grid: 1,
+  flex: 1
+},
     //takes a single value like 20px and converts it to the unit specified, like "%", returning only the numeric amount.
 _convertToUnit = function _convertToUnit(target, property, value, unit) {
   var curValue = parseFloat(value) || 0,
@@ -110814,10 +111343,10 @@ _convertToUnit = function _convertToUnit(target, property, value, unit) {
 
   cache = parent._gsap;
 
-  if (cache && toPercent && cache.width && horizontal && cache.time === _ticker.time) {
+  if (cache && toPercent && cache.width && horizontal && cache.time === _ticker.time && !cache.uncache) {
     return _round(curValue / cache.width * amount);
   } else {
-    (toPercent || curUnit === "%") && (style.position = _getComputedProperty(target, "position"));
+    (toPercent || curUnit === "%") && !_nonStandardLayouts[_getComputedProperty(parent, "display")] && (style.position = _getComputedProperty(target, "position"));
     parent === target && (style.position = "static"); // like for borderRadius, if it's a % we must have it relative to the target itself but that may not have position: relative or position: absolute in which case it'd go up the chain until it finds its offsetParent (bad). position: static protects against that.
 
     parent.appendChild(_tempDiv);
@@ -111029,6 +111558,8 @@ _convertToUnit = function _convertToUnit(target, property, value, unit) {
 
 
         cache.uncache = 1;
+
+        _removeIndependentTransforms(style);
       }
     }
   }
@@ -111153,7 +111684,7 @@ _identity2DMatrix = [1, 0, 0, 1, 0, 0],
       // note: in 3.3.0 we switched target.offsetParent to _doc.body.contains(target) to avoid [sometimes unnecessary] MutationObserver calls but that wasn't adequate because there are edge cases where nested position: fixed elements need to get reparented to accurately sense transforms. See https://github.com/greensock/GSAP/issues/388 and https://github.com/greensock/GSAP/issues/375
       addedToDOM = 1; //flag
 
-      nextSibling = target.nextSibling;
+      nextSibling = target.nextElementSibling;
 
       _docElement.appendChild(target); //we must add it to the DOM in order to get values properly
 
@@ -111241,6 +111772,7 @@ _identity2DMatrix = [1, 0, 0, 1, 0, 0],
       invertedScaleX = cache.scaleX < 0,
       px = "px",
       deg = "deg",
+      cs = getComputedStyle(target),
       origin = _getComputedProperty(target, _transformOriginProp) || "0",
       x,
       y,
@@ -111277,6 +111809,16 @@ _identity2DMatrix = [1, 0, 0, 1, 0, 0],
   x = y = z = rotation = rotationX = rotationY = skewX = skewY = perspective = 0;
   scaleX = scaleY = 1;
   cache.svg = !!(target.getCTM && _isSVG(target));
+
+  if (cs.translate) {
+    // accommodate independent transforms by combining them into normal ones.
+    if (cs.translate !== "none" || cs.scale !== "none" || cs.rotate !== "none") {
+      style[_transformProp] = (cs.translate !== "none" ? "translate3d(" + (cs.translate + " 0 0").split(" ").slice(0, 3).join(", ") + ") " : "") + (cs.rotate !== "none" ? "rotate(" + cs.rotate + ") " : "") + (cs.scale !== "none" ? "scale(" + cs.scale.split(" ").join(",") + ") " : "") + cs[_transformProp];
+    }
+
+    style.scale = style.rotate = style.translate = "none";
+  }
+
   matrix = _getMatrix(target, cache.svg);
 
   if (cache.svg) {
@@ -111752,8 +112294,13 @@ var CSSPlugin = {
         transformPropTween,
         cache,
         smooth,
-        hasPriority;
-    _pluginInitted || _initCore();
+        hasPriority,
+        inlineProps;
+    _pluginInitted || _initCore(); // we may call init() multiple times on the same plugin instance, like when adding special properties, so make sure we don't overwrite the revert data or inlineProps
+
+    this.styles = this.styles || _getStyleSaver(target);
+    inlineProps = this.styles.props;
+    this.tween = tween;
 
     for (p in vars) {
       if (p === "autoRound") {
@@ -111796,6 +112343,7 @@ var CSSPlugin = {
         endUnit ? startUnit !== endUnit && (startValue = _convertToUnit(target, p, startValue, endUnit) + endUnit) : startUnit && (endValue += startUnit);
         this.add(style, "setProperty", startValue, endValue, index, targets, 0, 0, p);
         props.push(p);
+        inlineProps.push(p, style[p]);
       } else if (type !== "undefined") {
         if (startAt && p in startAt) {
           // in case someone hard-codes a complex value as the start, like top: "calc(2vh / 2)". Without this, it'd use the computed value (always in px)
@@ -111821,6 +112369,8 @@ var CSSPlugin = {
               startNum = 0;
             }
 
+            inlineProps.push("visibility", style.visibility);
+
             _addNonTweeningPT(this, style, "visibility", startNum ? "inherit" : "hidden", endNum ? "inherit" : "hidden", !endNum);
           }
 
@@ -111833,6 +112383,8 @@ var CSSPlugin = {
         isTransformRelated = p in _transformProps; //--- TRANSFORM-RELATED ---
 
         if (isTransformRelated) {
+          this.styles.save(p);
+
           if (!transformPropTween) {
             cache = target._gsap;
             cache.renderTransform && !vars.parseTransform || _parseTransform(target, vars.parseTransform); // if, for example, gsap.set(... {transform:"translateX(50vw)"}), the _get() call doesn't parse the transform, thus cache.renderTransform won't be set yet so force the parsing of the transform here.
@@ -111844,10 +112396,12 @@ var CSSPlugin = {
           }
 
           if (p === "scale") {
-            this._pt = new PropTween(this._pt, cache, "scaleY", cache.scaleY, (relative ? _parseRelative(cache.scaleY, relative + endNum) : endNum) - cache.scaleY || 0);
+            this._pt = new PropTween(this._pt, cache, "scaleY", cache.scaleY, (relative ? _parseRelative(cache.scaleY, relative + endNum) : endNum) - cache.scaleY || 0, _renderCSSProp);
+            this._pt.u = 0;
             props.push("scaleY", p);
             p += "X";
           } else if (p === "transformOrigin") {
+            inlineProps.push(_transformOriginProp, style[_transformOriginProp]);
             endValue = _convertKeywordsToPercentages(endValue); //in case something like "left top" or "bottom right" is passed in. Convert to percentages.
 
             if (cache.svg) {
@@ -111912,11 +112466,24 @@ var CSSPlugin = {
           _tweenComplexCSSString.call(this, target, p, startValue, relative ? relative + endValue : endValue);
         }
 
+        isTransformRelated || inlineProps.push(p, style[p]);
         props.push(p);
       }
     }
 
     hasPriority && _sortPropTweensByPriority(this);
+  },
+  render: function render(ratio, data) {
+    if (data.tween._time || !_reverting()) {
+      var pt = data._pt;
+
+      while (pt) {
+        pt.r(ratio, pt.d);
+        pt = pt._next;
+      }
+    } else {
+      data.styles.revert();
+    }
   },
   get: _get,
   aliases: _propertyAliases,
@@ -111932,6 +112499,7 @@ var CSSPlugin = {
   }
 };
 gsap.utils.checkPrefix = _checkPropPrefix;
+gsap.core.getStyleSaver = _getStyleSaver;
 
 (function (positionAndScale, rotation, others, aliases) {
   var all = _forEachName(positionAndScale + "," + rotation + "," + others, function (name) {
@@ -121339,6 +121907,8 @@ const isDarkMode = localStorage.getItem("isDarkMode");
 const backgroundColor = isDarkMode == "true" ? new Color(0x212121) : new Color(0xe8e8e8);
 
 const viewer = new IfcViewerAPI({ container, backgroundColor: backgroundColor });
+
+
 viewer.grid.setGrid();
 
 viewer.axes.setAxes();
@@ -121349,15 +121919,15 @@ async function loadIfc(url) {
     console.log(model);
     viewer.shadowDropper.renderShadow(model.modelID);
     const project = await viewer.IFC.getSpatialStructure(model.modelID);
-    createSpatialTreeMenu(project);
+    await createSpatialTreeMenu(project);
 
 }
 
-function createSpatialTreeMenu(ifcProject){
+async function createSpatialTreeMenu(ifcProject){
    
     const spatialTreeElement = document.getElementById("treeViewRoot");
     // clean tree before
-    createParentNode(spatialTreeElement,ifcProject);
+    await createParentNode(spatialTreeElement,ifcProject);
 
 }
 
@@ -121373,17 +121943,21 @@ loadIfc(modelPath);
 
 
 
-function nodeToString(node) {
-    return `${node.type} - ${node.expressID}`
+async function nodeToString(node) {
+
+  const nodeProps =  await viewer.IFC.loader.ifcManager.properties.getItemProperties(0,node.expressID) ; /// should not hard code modelId
+  return `${nodeProps.Name.value} \u2011 ${node.expressID}`
 }
 
-function createParentNode(parent, node){
-    const content = nodeToString(node);
+async function createParentNode(parent, node){
+    const content = await nodeToString(node);
     const root = document.createElement('li');
     const span = document.createElement('span');
     span.dataset.expressID = node.expressID;
     span.classList.add('caret');
+    span.classList.add(node.type.toLowerCase());
     span.textContent = content;
+    
 
     span.addEventListener("click", function(event) {
         console.log(span.dataset.expressID);
@@ -121393,21 +121967,21 @@ function createParentNode(parent, node){
       });
 
 
-    const nestedList = generateNestedList(node);
+    const nestedList = await generateNestedList(node);
     root.appendChild(span);
     root.appendChild(nestedList);
     parent.appendChild(root);
  
 }
 
-function createSimpleNode(parent, node){
-    const content = nodeToString(node);
+async function createSimpleNode(parent, node){
+    const content = await nodeToString(node);
     const simpleNode = document.createElement('li');
     simpleNode.textContent = content;
     parent.appendChild(simpleNode);
 }
 
-function generateNestedList(node){
+async function generateNestedList(node){
 
     const nestedList = document.createElement("ul");
     nestedList.classList.add("nested");
@@ -121415,10 +121989,10 @@ function generateNestedList(node){
 
     for (var child of node.children){
         if (child.children.length === 0){
-            createSimpleNode(nestedList, child);
+            await createSimpleNode(nestedList, child);
         }
         else {
-            createParentNode(nestedList, child);}
+            await createParentNode(nestedList, child);}
        
 
     }
@@ -121472,9 +122046,11 @@ function dragElement(elmnt) {
       document.onmousemove = null;
     }
   }
-
-
 window.ondblclick = async () =>{
+  if(viewer.dimensions.active){
+    viewer.dimensions.create();
+    return;
+  }
   
   var selection = await viewer.IFC.selector.pickIfcItem();
   if (! selection){
@@ -121490,7 +122066,7 @@ window.ondblclick = async () =>{
 
 
 }; 
-window.onmousemove = async () => await viewer.IFC.selector.prePickIfcItem();
+// window.onmousemove = async () => await viewer.IFC.selector.prePickIfcItem();
 
 const propMenuContent = document.getElementById("property-view-content");
 
@@ -121570,6 +122146,36 @@ function generateSection(name, keyValues){
 
 }
 
-
 viewer.IFC.selector.defSelectMat.color = new Color(0x00ffff);
 // viewer.IFC.selector.defSelectMat.depthTest = true;
+viewer.clipper.active = true ;
+
+
+window.onkeydown = (event) => {
+  console.log(event);
+  if (event.key === 'p'){
+    viewer.clipper.createPlane();
+  }
+  if (event.key === 'r'){
+    viewer.clipper.deletePlane();
+  }
+  if (event.key === 'd'){
+    viewer.clipper.deleteAllPlanes();
+  }
+  if (event.key === 'm' );
+  if(event.code === 'Delete') {
+    viewer.dimensions.delete();
+}
+  
+};
+
+
+
+document.getElementById("measure-tool").onclick = ()=>{
+  const isActive =  viewer.dimensions.active;
+  viewer.dimensions.active = !isActive;
+  viewer.dimensions.previewActive = !isActive;
+  if (isActive){
+    viewer.dimensions.deleteAll();
+  }
+};

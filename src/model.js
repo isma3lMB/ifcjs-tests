@@ -1,6 +1,5 @@
-import { Color, PropertyMixer } from 'three';
+import { Color } from 'three';
 import { IfcViewerAPI } from 'web-ifc-viewer';
-import { IfcWallStandardCase } from 'web-ifc';
 
 const container = document.getElementById('viewer-canvas-container');
 
@@ -10,6 +9,8 @@ const isDarkMode = localStorage.getItem("isDarkMode");
 const backgroundColor = isDarkMode == "true" ? new Color(0x212121) : new Color(0xe8e8e8);
 
 const viewer = new IfcViewerAPI({ container, backgroundColor: backgroundColor });
+
+
 viewer.grid.setGrid();
 
 viewer.axes.setAxes();
@@ -20,15 +21,15 @@ async function loadIfc(url) {
     console.log(model)
     viewer.shadowDropper.renderShadow(model.modelID);
     const project = await viewer.IFC.getSpatialStructure(model.modelID);
-    createSpatialTreeMenu(project)
+    await createSpatialTreeMenu(project)
 
 }
 
-function createSpatialTreeMenu(ifcProject){
+async function createSpatialTreeMenu(ifcProject){
    
     const spatialTreeElement = document.getElementById("treeViewRoot");
     // clean tree before
-    createParentNode(spatialTreeElement,ifcProject);
+    await createParentNode(spatialTreeElement,ifcProject);
 
 }
 
@@ -44,17 +45,21 @@ loadIfc(modelPath);
 
 
 
-function nodeToString(node) {
-    return `${node.type} - ${node.expressID}`
+async function nodeToString(node) {
+
+  const nodeProps =  await viewer.IFC.loader.ifcManager.properties.getItemProperties(0,node.expressID) ; /// should not hard code modelId
+  return `${nodeProps.Name.value} \u2011 ${node.expressID}`
 }
 
-function createParentNode(parent, node){
-    const content = nodeToString(node);
+async function createParentNode(parent, node){
+    const content = await nodeToString(node);
     const root = document.createElement('li');
     const span = document.createElement('span');
     span.dataset.expressID = node.expressID;
     span.classList.add('caret');
+    span.classList.add(node.type.toLowerCase())
     span.textContent = content;
+    
 
     span.addEventListener("click", function(event) {
         console.log(span.dataset.expressID);
@@ -64,21 +69,21 @@ function createParentNode(parent, node){
       })
 
 
-    const nestedList = generateNestedList(node);
+    const nestedList = await generateNestedList(node);
     root.appendChild(span);
     root.appendChild(nestedList);
     parent.appendChild(root);
  
 }
 
-function createSimpleNode(parent, node){
-    const content = nodeToString(node);
+async function createSimpleNode(parent, node){
+    const content = await nodeToString(node);
     const simpleNode = document.createElement('li');
     simpleNode.textContent = content;
     parent.appendChild(simpleNode)
 }
 
-function generateNestedList(node){
+async function generateNestedList(node){
 
     const nestedList = document.createElement("ul");
     nestedList.classList.add("nested");
@@ -87,10 +92,10 @@ function generateNestedList(node){
     for (var child of node.children){
         var childElement;
         if (child.children.length === 0){
-            childElement = createSimpleNode(nestedList, child);
+            childElement = await createSimpleNode(nestedList, child);
         }
         else{
-            childElement = createParentNode(nestedList, child);}
+            childElement = await createParentNode(nestedList, child);}
        
 
     }
@@ -144,9 +149,11 @@ function dragElement(elmnt) {
       document.onmousemove = null;
     }
   }
-
-
 window.ondblclick = async () =>{
+  if(viewer.dimensions.active){
+    viewer.dimensions.create();
+    return;
+  }
   
   var selection = await viewer.IFC.selector.pickIfcItem();
   if (! selection){
@@ -162,7 +169,7 @@ window.ondblclick = async () =>{
 
 
 } 
-window.onmousemove = async () => await viewer.IFC.selector.prePickIfcItem();
+// window.onmousemove = async () => await viewer.IFC.selector.prePickIfcItem();
 
 const propMenuContent = document.getElementById("property-view-content");
 
@@ -244,6 +251,40 @@ function generateSection(name, keyValues){
 
 }
 
-
 viewer.IFC.selector.defSelectMat.color = new Color(0x00ffff);
 // viewer.IFC.selector.defSelectMat.depthTest = true;
+viewer.clipper.active = true ;
+
+
+window.onkeydown = (event) => {
+  console.log(event)
+  if (event.key === 'p'){
+    viewer.clipper.createPlane();
+  }
+  if (event.key === 'r'){
+    viewer.clipper.deletePlane();
+  }
+  if (event.key === 'd'){
+    viewer.clipper.deleteAllPlanes();
+  }
+  if (event.key === 'm' ){
+    
+  }
+  if(event.code === 'Delete') {
+    viewer.dimensions.delete();
+}
+  
+}
+
+
+
+document.getElementById("measure-tool").onclick = ()=>{
+  const isActive =  viewer.dimensions.active;
+  viewer.dimensions.active = !isActive;
+  viewer.dimensions.previewActive = !isActive;
+  if (isActive){
+    viewer.dimensions.deleteAll();
+  };
+
+}
+

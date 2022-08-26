@@ -33,7 +33,7 @@ function createModelCard(model) {
     () => (location.href = `model.html?modelId=${model.id}`),
     true
   );
-  return mainDiv;
+return mainDiv;
 }
 
 const toggleButton = document.getElementById("dark-toggle");
