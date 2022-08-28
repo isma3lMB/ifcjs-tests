@@ -103218,7 +103218,7 @@ class OrbitControl extends IfcComponent {
         if (!this.enabled)
             return;
         const scene = this.context.getScene();
-        const box = new Box3().setFromObject(scene.children[scene.children.length - 1]);
+        const box = new Box3().setFromObject(scene.children[0]);
         const sceneSize = new Vector3();
         box.getSize(sceneSize);
         const sceneCenter = new Vector3();
@@ -106475,7 +106475,7 @@ class IfcRenderer extends IfcComponent {
         this.blocked = false;
         this.context = context;
         this.container = context.options.container;
-        this.renderer = new WebGLRenderer({ alpha: true });
+        this.renderer = new WebGLRenderer({ alpha: true , antialias:true});
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.setupRenderers();
         this.postProduction = new Postproduction(this.context, this.renderer);
@@ -121920,6 +121920,7 @@ async function loadIfc(url) {
     viewer.shadowDropper.renderShadow(model.modelID);
     const project = await viewer.IFC.getSpatialStructure(model.modelID);
     await createSpatialTreeMenu(project);
+    viewer.context.renderer.postProduction.active = true;
 
 }
 
@@ -121946,7 +121947,10 @@ loadIfc(modelPath);
 async function nodeToString(node) {
 
   const nodeProps =  await viewer.IFC.loader.ifcManager.properties.getItemProperties(0,node.expressID) ; /// should not hard code modelId
-  return `${nodeProps.Name.value} \u2011 ${node.expressID}`
+  var name = decodeIFCString(nodeProps.Name.value);
+  // console.log(name)
+  name = name? name : "undefined"; 
+  return `${name} \u2011 ${node.expressID}`
 }
 
 async function createParentNode(parent, node){
@@ -122000,9 +122004,11 @@ async function generateNestedList(node){
 
 }
 
+const propView = document.getElementById("property-view");
+const treeView = document.getElementById("tree-view"); 
 
-dragElement(document.getElementById("tree-view"));
-dragElement(document.getElementById("property-view"));
+dragElement(treeView);
+dragElement(propView);
 dragElement(document.getElementById("viewer-toolbox"));
 
 
@@ -122066,7 +122072,7 @@ window.ondblclick = async () =>{
 
 
 }; 
-// window.onmousemove = async () => await viewer.IFC.selector.prePickIfcItem();
+window.onmousemove = async () => await viewer.IFC.selector.prePickIfcItem();
 
 const propMenuContent = document.getElementById("property-view-content");
 
@@ -122122,7 +122128,7 @@ function generateSection(name, keyValues){
     const name = document.createElement('p');
     name.textContent = propName;
     const value = document.createElement('p');
-    value.textContent = keyValues[propName];
+    value.textContent = decodeIFCString( keyValues[propName]);
     propLine.appendChild(name);
     propLine.appendChild(value);
     panel.appendChild(propLine);
@@ -122147,9 +122153,21 @@ function generateSection(name, keyValues){
 }
 
 viewer.IFC.selector.defSelectMat.color = new Color(0x00ffff);
+viewer.IFC.selector.defPreselectMat.color = new Color(0xccffff);
 // viewer.IFC.selector.defSelectMat.depthTest = true;
-viewer.clipper.active = true ;
 
+
+const clipperButton = document.getElementById("section-tool");
+
+clipperButton.onclick = ()=>{
+  const isActive = viewer.clipper.active;
+  viewer.clipper.active = !isActive;
+  if (!isActive) window.alert("p : New plane\nr : Remove plane\nd : Remove all");
+  else viewer.clipper.deleteAllPlanes();
+  
+
+  clipperButton.classList.toggle("selectedTool");
+};
 
 window.onkeydown = (event) => {
   console.log(event);
@@ -122166,10 +122184,7 @@ window.onkeydown = (event) => {
   if(event.code === 'Delete') {
     viewer.dimensions.delete();
 }
-  
 };
-
-
 
 document.getElementById("measure-tool").onclick = ()=>{
   const isActive =  viewer.dimensions.active;
@@ -122177,5 +122192,38 @@ document.getElementById("measure-tool").onclick = ()=>{
   viewer.dimensions.previewActive = !isActive;
   if (isActive){
     viewer.dimensions.deleteAll();
+  }  document.getElementById("measure-tool").classList.toggle("selectedTool");
+};
+
+document.getElementById("fitToFrame").onclick = ()=> {
+  viewer.context.fitToFrame();
+  viewer.context.renderer.postProduction.active=false;
+  viewer.context.renderer.postProduction.update();
+  viewer.context.renderer.postProduction.active = true;
+
+
+};
+
+
+function decodeIFCString (ifcString) {
+  const ifcUnicodeRegEx = /\\X2\\(.*?)\\X0\\/uig;
+  let resultString = ifcString;
+  let match = ifcUnicodeRegEx.exec (ifcString);
+  while (match) {
+      const unicodeChar = String.fromCharCode (parseInt (match[1], 16));
+      resultString = resultString.replace (match[0], unicodeChar);
+      match = ifcUnicodeRegEx.exec (ifcString);
   }
+  return resultString;
+}
+
+const propsButton = document.getElementById("props-pannel");
+propsButton.onclick = () => {
+  propView.classList.toggle('visible');
+  propsButton.classList.toggle("selectedTool");
+};
+const treeButton = document.getElementById("tree-pannel");
+treeButton.onclick = () => {
+  treeView.classList.toggle('visible');
+  treeButton.classList.toggle("selectedTool");
 };
